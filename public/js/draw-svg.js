@@ -5,7 +5,7 @@ window.onload = init();
       
 
 function init() {
-    const btnX = 650;
+    const btnX = 650;    
     let addButton = s.circle(btnX,50,30);
     addButton.attr({
         fill: "#bada55",
@@ -24,12 +24,14 @@ function init() {
     s.text(+delButton.attr("cx"),
         +delButton.attr("cy"), "-");
 
-    addButton.click(() => {
-        if(rectcounter < 5) {
-            createRect();
-            rectcounter++;
-        }
-    });
+    addButton.click(onAddButtonClick);
+}
+
+function onAddButtonClick() {
+    if(rectcounter < 5) {
+        createRect();
+        rectcounter++;
+    }
 }
 
 function createRect() {
@@ -72,10 +74,10 @@ function createText(x,y,text) {
 }
 
 
-loadSVGinURL();
+loadSVGfromURL();
 
 
-function loadSVGinURL() {
+function loadSVGfromURL() {
     // load svg
     const urlpathname = window.location.pathname;
     const paths = urlpathname.split("/")
@@ -84,12 +86,19 @@ function loadSVGinURL() {
           res.json()
       )
       .then((json) => {
-        if(json[0].inner)
-            document.getElementById("drawsvg").innerHTML = unescapeHtml("" + json[0].inner);
+        if(json[0].inner) 
+            initLoadedSVG(unescapeHtml("" + json[0].inner))
         console.log(unescapeHtml("" + json[0].inner));
       });
   }
 
+function initLoadedSVG(inner) {
+    // view on SVG element
+    document.getElementById("drawsvg").innerHTML = unescapeHtml(inner);
 
+    // add click listener
+    s.children()[2].click(onAddButtonClick)
+    console.log(s.children());
+}
 
 
