@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Getting Started</title>
+    <link rel="stylesheet" href="../style.css">
+    <script type="text/javascript" src="../js/snap.svg.js"></script>
+    <script type="text/javascript" src="../js/menu.js"></script>
+    
+  </head>
+  <body>
+    <h1>Hello!</h1>
+    <ul id="pagenav">
+      <li><a href="/view">alles anzeigen</a></li>
+      <li><button onclick="fetchPostDef()">neue Definition</button>
+          <button>neue Aussage</button></li>
+      <li><button>speichern</button>
+          <button>loeschen</button></li>
+    </ul>   
+
+    <h3>Definitionen</h3>
+    <div id="deflinks"></div>
+
+    <h3>Aussagen</h3>
+    <div id="auslinks"></div>
+
+    <svg id="drawsvg"></svg>
+    <script type="text/javascript">
+      // alle Definitionen als links anzeigen
+      fetch('/api/def')
+          .then((res) => 
+            res.json()
+          )
+          .then((data) => {
+            for (item of data) {        
+              const deflink = document.createElement("a");
+              deflink.href = "/def/?id=" + item._id;
+              deflink.textContent = "hey ";
+              document.getElementById("deflinks").appendChild(deflink);
+            }
+          });
+        
+      const urlParams = new URLSearchParams(window.location.search);
+      const def_id = urlParams.get('id');
+      console.log(def_id);
+      
+      // // bestimmte Def anzeigen
+      // fetch('/api/def/' + def_id)
+      //     .then((res) => 
+      //       res.json()
+      //     )
+      //     .then((data) => {
+      //       //s.data
+      //     });
+
+      //Snap ------------------------------------------------------------------------
+      const s = Snap("#drawsvg");
+      let rectcounter = 0;
+
+      s.click(() => {
+        if(rectcounter < 5) {
+          createRect();
+          rectcounter++;
+        }if(rectcounter == 5) {
+          console.log(s.toString());          
+        }
+      });        
+
+      function createRect() {
+        const height = 100;
+        let rect = s.rect(
+                        40, 40 + rectcounter*(height+20),
+                        250, height,
+                        10);
+        rect.attr({
+          fill: "#bada55",
+          stroke: "#000",
+          strokeWidth: 5
+        });
+        var t1 = s.text(+rect.attr("x") + 20,
+                      +rect.attr("y") + 20, "Snap");
+        createText(+rect.attr("x") + 20,
+                      +rect.attr("y") + 20, "edit me");
+      }
+
+      function createText(x,y,text) {
+        var myforeign = document.createElementNS('http://www.w3.org/2000/svg', 'foreignObject')
+        var textdiv = document.createElement("div");
+        var textnode = document.createTextNode(text);
+        textdiv.appendChild(textnode);
+        textdiv.setAttribute("contentEditable", "true");
+        textdiv.setAttribute("width", "auto");
+        myforeign.setAttribute("width", "100%");
+        myforeign.setAttribute("height", "100%");
+        myforeign.classList.add("foreign"); //to make div fit text
+        textdiv.classList.add("divinforeign"); //to make div fit text
+        //textdiv.addEventListener("mousedown", elementMousedown, false);
+        myforeign.setAttributeNS(null, "transform", "translate(" + x + " " + y + ")");
+        myforeign.appendChild(textdiv);
+        document.getElementById("drawsvg").appendChild(myforeign);
+      }
+      
+
+      </script>
+    </body>
+</html>

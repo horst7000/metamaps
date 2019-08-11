@@ -1,0 +1,22 @@
+extends layout
+
+block includeScripts
+  link(rel='stylesheet' href='/style.css')
+  script(type='text/javascript' src= '/js/snap.svg.js')
+  script(type='text/javascript' src= '/js/menu.js')
+
+block control
+  br
+  ul#pagenav.list-group
+  li
+    button(onclick='fetchPostDef()').btn.btn-secondary + neue Definition
+    button.btn.btn-secondary + neue Aussage
+  li
+    button(onclick='fetchPutDef()').btn.btn-secondary speichern
+    button.btn.btn-danger loeschen
+  br
+  h3 Definitions
+  for item in definitions
+    a(href="/def/" + item._id) bla
+
+  

@@ -1,0 +1,17 @@
+{
+  "name": "metamaps",
+  "version": "1.0.0",
+  "description": "visualize knowledge",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Martin Gaebele",
+  "license": "ISC",
+  "dependencies": {
+    "express": "^4.17.1",
+    "nedb": "^1.8.0",
+    "paper": "^0.12.3",
+    "pug": "^2.0.4"
+  }
+}
