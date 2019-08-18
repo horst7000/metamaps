@@ -69,11 +69,13 @@ app.route("/api/def")
 app.route("/api/def/:id")
     .get((req,res) => {
         database.find({ _id: req.params.id }, (err,docs) => {
-            res.json(docs);
+            res.json(docs[0]);
         });
         
     })
     .put((req,res) => {
-        const data = req.body.inner;
-        database.update({ _id: req.params.id }, { $set: { inner : data } }, {})
+        // const data = req.body.inner;
+        const data = req.body;
+        database.update({ _id: req.params.id }, { $set: { blocks : data } }, {});
+        res.json(data);
     });
