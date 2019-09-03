@@ -16,68 +16,183 @@ const drawer = (function() {
             this._children = [];
             this._btns = [];
 
-            createBlock(this);
-            if(type == blocktype.premise)
-                this._btns.push(createAddButton(buttonpos.bottomright, this));
-            if(type != blocktype.conclusion)
-                this._btns.push(createAddButton(buttonpos.bottom, this));
-            if(type != blocktype.premise)
-                this._btns.push(createAddButton(buttonpos.topright, this));
+            // draw block
+            drawBlock(this); //initialises _snapset
+
+            // draw buttons
+            if(type != blocktype.premise) { // premise has no top or topright button
+                this._snapset.push(...createAddButton(buttonpos.topright, this));
+                this._snapset.push(...createAddButton(buttonpos.top, this));
+            }
+            this._snapset.push(...createAddButton(buttonpos.bottomright, this));
+            this._snapset.push(...createAddButton(buttonpos.bottom, this));
         }
         set text(text) { this._text = text; }
         set rectID(rectID) { this._rectID = rectID; }
+        set snapset(snapset) { this._snapset = snapset; }
         get rectID(){ return this._rectID; }
         get text() { return this._text; }
         get nr() { return this._nr; }
         get x() { return this._x; }
-        get y() { return this._y; }
+        set x(x) { this._x = x; }
+        get y() { return  this._y; }
+        set y(y) { this._y = y; }
         get isPremise() { return (type == blocktype.premise); }
-        get isConclusion() { return (type == blocktype.conclusion); }        
+        get isConclusion() { return (type == blocktype.conclusion); }
+        get isConnectedToRoot() { // recursive
+            parents.forEach(parentBlock => {
+                if(parentBlock.isConnectedToRoot())
+                    return true;
+            });
+            return false;
+        }
         get width() { return s.select(this._rectID).attr("width"); }
         get height() { return s.select(this._rectID).attr("height"); }
+        get children() { return this.children };
+        get parents() { return this._parents };
+        addChild(child) { this._children.push(child); }
+        addParent(parent) { this._parents.push(parent); }
+        delChild(child) {
+            this._children = this._children.filter( (val) => val != child);
+        }
+        delParent(parent) {
+            this._parents = this._parents.filter( (val) => val != parent);
+        }
 
-        
-        onTextChange(element) { //element is HTMLParagraphElement
-            this._text = element.innerHTML;
-            let h      = element.offsetHeight;
-            let oldh   = parseInt(s.select(this._rectID).attr("height"));
-            let hdif   = (h+45) - oldh;
+        onTextChange(p) { //p is HTMLParagraphElement
+            this._text = p.innerHTML;
+            let h      = p.offsetHeight;            
             
-            // set rect new height
-            s.select(this._rectID).attr({height : h+45});
+            this.rescale(h+45);
+        }     
 
-            // set buttons new y
-            this._btns.forEach(btn => {
-                let btnpos = btn.attr("pos");
-                if(btnpos != buttonpos.top && btnpos != buttonpos.topright) {
-                    let oldbtnY = parseInt(btn.attr("cy"));
-                    btn.attr({ cy : oldbtnY + hdif });
+        rescale(newY) {
+            // sets elements of _snapset new y
+            let oldh   = parseInt(this.height);
+            let hdif   = newY - oldh;
+            this.insertSpaceBelow(20, hdif);
+
+            // set rect new height
+            s.select(this._rectID).attr({height : newY});
+        }
+        
+        insertSpaceBelow(belowY, amountY) {
+            this.moveAllChildrenY(amountY);
+
+            let blockCoordChanged = false;
+            this._snapset.forEach(el => {
+                let yattr = "y";
+                if(el.type == "circle")
+                    yattr = "cy";
+                
+                let elY = el.attr(yattr);
+                if(elY - this.y > belowY ) { // not on top
+                    let oldelY = parseInt(el.attr(yattr));
+                    el.attr({ [yattr] : oldelY + amountY }); //[yattr] is "cy" or "y"
+                    if (el.type == "rect")
+                        blockCoordChanged = true;
                 }
             });
 
+            if(blockCoordChanged) this.updateCoords();
+
+            // move textpar
+            document.getElementById(this.foreignID).setAttributeNS(null,
+                "transform", "translate( " + (this.x+20) + " " + (this.y+20) + ")");
+        }   
+
+        updateCoords() {
+            this.x = parseInt( s.select(this._rectID).attr("x") );
+            this.y = parseInt( s.select(this._rectID).attr("y") );
+        }
+
+        moveAllChildrenY(amountY) { // recursive
+            this._children.forEach(childNr => {
+                let childBlock = getBlockByNr(childNr);
+                childBlock.moveAllChildrenY(amountY);
+                childBlock.insertSpaceBelow(-20, amountY);
+            });
+            
+        }
+
+        insertBlock(relativePos) {
+            blockcntr++;
+            let freespaceY = 110;
+
+            let bl = new Block(40, this.y, "edit me", blockcntr);
+            blocks.push(bl);
+
+            // ------ manage children / parents
+            if(relativePos == buttonpos.top) {
+                // pass parents
+                this._parents.forEach(parNr => {
+                    let par = getBlockByNr(parNr);
+                    this.connect(par, bl);
+                    this.disconnect(par, this);
+                });
+                
+                this._parents = [];
+            }
+
+            if(relativePos == buttonpos.bottom) {
+                // pass children
+                this._children.forEach(childNr => {
+                    let child = getBlockByNr(childNr);
+                    this.connect(bl, child);
+                    this.disconnect(this, child);
+                });
+                
+                this._children = [];
+            }
+
+            if(relativePos == buttonpos.top || relativePos == buttonpos.topright) {                
+                // connect child and new parent
+                this.connect(bl, this);
+                
+                // move old block and children
+                bl.moveAllChildrenY(freespaceY);
+
+            } else {
+                // connect parent and new child
+                this.connect(this, bl);
+                
+                // move only children
+                this.moveAllChildrenY(parseInt(this.height) + freespaceY/2);
+            }
+        }
+
+        connect(parentBlock, childBlock) {
+            parentBlock.addChild(childBlock.nr);
+            childBlock.addParent(parentBlock.nr);
+        }
+
+        disconnect(oldParent, oldChild) {
+            oldParent.delChild(oldChild.nr);
+            oldChild.delParent(oldParent.nr);
         }
 
         asObj() {
             return {
-                text : this._text,
-                nr : this._nr,
-                x : this._x,
-                y : this._y,
+                text : this.text,
+                nr : this.nr,
+                x : this.x,
+                y : this.y,
                 type : this._type,
             }
         }
     }
 
-    function createBlock(block) { 
-        let ids = createRect(block.x,block.y, block.nr,block.text);
+    function drawBlock(block) { 
+        let ids = drawRect(block.x,block.y, block.nr,block.text);
         let textpar = document.getElementById(ids[1]).lastChild.lastChild;
         textpar.addEventListener("input", (ev) => block.onTextChange(ev.target)); // ev.target is textpar
 
         block.rectID    = ids[0];
         block.foreignID = ids[1];
+        block.snapset   = ids[2];
     }
 
-    function createRect(x,y,nr,text) {
+    function drawRect(x,y,nr,text) {
         const width  = 350,
               height = 150;
     
@@ -87,13 +202,12 @@ const drawer = (function() {
                         10);        
         // derive id of foreign element from rectID
         let forID = "for" + rect.id.slice(4);
-        let t1 = s.text(+rect.attr("x") + 20,
+        let t  = s.text(+rect.attr("x") + 20,
                     +rect.attr("y") + 20, nr);
         let h  = createText(+rect.attr("x") + 20,
                     +rect.attr("y") + 20, text, forID);
         
-        // let gr = s.g(rect, t1);
-        // gr.attr({x : 1000});
+                    
         console.log(s.node.children);
 
         rect.attr({
@@ -103,8 +217,9 @@ const drawer = (function() {
             id : rect.id,
             height : h+45,
         });
-        
-        return ["#"+rect.id, forID];
+        snapset = Snap.set(rect, t);
+
+        return ["#"+rect.id, forID, snapset];
     }
     
     /*
@@ -136,49 +251,41 @@ const drawer = (function() {
     }
 
     /*
-        needs parent and child to set child/parent property of affected blocks
+        needs parent and child to adjust child/parent property of affected blocks
     */
-    function createAddButton(relativePos, parent, child) {
+    function createAddButton(relativePos, owner) {
         let btnX = 0;
         let btnY = 0;
         switch (relativePos) {
             case buttonpos.bottom:
-                btnX = parent.x + parseInt(parent.width) / 2;
-                btnY = parent.y + parseInt(parent.height) +15;
+                btnX = owner.x + parseInt(owner.width) / 2;
+                btnY = owner.y + parseInt(owner.height) +15;
                 break;
             case buttonpos.bottomright:
-                btnX = parent.x + parseInt(parent.width);
-                btnY = parent.y + parseInt(parent.height) +15;
+                btnX = owner.x + parseInt(owner.width);
+                btnY = owner.y + parseInt(owner.height) +15;
                 break;
             case buttonpos.topright:
-                btnX = parent.x + parseInt(parent.width);
-                btnY = parent.y;
+                btnX = owner.x + parseInt(owner.width);
+                btnY = owner.y;
+                break;
+            case buttonpos.top:
+                btnX = owner.x + parseInt(owner.width) / 2;
+                btnY = owner.y;
                 break;
         }
         let addButton = s.circle(btnX,btnY,15);
         addButton.attr({
             fill: "#bada55",
             stroke: "#000",
-            strokeWidth: 3,
-            pos : relativePos
+            strokeWidth: 3
         });
-        s.text(+addButton.attr("cx"),
+        let t = s.text(+addButton.attr("cx"),
             +addButton.attr("cy"), "+");
             
-        addButton.click(() => onAddButtonClick(relativePos, parent, child));
-        return addButton;
+        addButton.click(() => owner.insertBlock(relativePos));
+        return [addButton,t];
     }
-    
-    function onAddButtonClick(relativePos, parent, child) {
-        blockcntr++;
-        let createType = blocktype.proof;
-        if(parent.type == blocktype.premise && !child)
-            createType = blocktype.conclusion;
-        
-
-        blocks.push(new Block(40, 40 +parent.y +parseInt(parent.height),
-            "edit me", blockcntr, createType));
-    };
     
     function maxBlockNr() {
         let maxnr = 0;
@@ -190,10 +297,11 @@ const drawer = (function() {
     }
 
     function getBlockByNr(nr) {
-        blocks.forEach(block => {
+        for (let i = 0; i < blocks.length; i++) {
+            const block = blocks[i];
             if(block.nr == nr)
                 return block;
-        });
+        }
         return undefined;
     }
     
@@ -220,7 +328,6 @@ const drawer = (function() {
         });
     }
 
-    
     (function init() {
         loadSVGfromURL(() => {
             blockcntr = maxBlockNr();
@@ -229,14 +336,6 @@ const drawer = (function() {
                 blocks.push(new Block(40, 40, "edit me", blockcntr, blocktype.premise));
             }
         });
-
-
-    let r = s.rect(500,0,10,10);
-    r.attr({fill: Snap.flat.carrot});
-    let c = s.circle(550,0,10);
-    let t = s.text(505,10,"bla");
-    set = Snap.set(r,c,t);
-    set.forEach((el) => el.animate({y:300},1000));
 
         /*
         const btnX = 650;    
