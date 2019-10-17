@@ -28,6 +28,15 @@ function findAllIDs() {
     });
 }
 
+function getTitle(id) {
+    return new Promise(resolve => {
+        database.find({ _id: id }, (err, docs) => {
+            if(docs.length > 0 && !err)
+                resolve(docs[0].title);
+        });
+    });
+}
+
 // --------------  not used ---------
 // function findID(id) {
 //     return new Promise(resolve => {
@@ -41,15 +50,20 @@ function findAllIDs() {
 app.route("/")
     .get( async (req,res) => {
         const docs = await findAllIDs();
-        await res.render('index', { definitions : docs });
+        res.render('root', { definitions : docs, title : "" });
     });
 
 app.route("/def/:id") 
     .get( async (req,res) => {
+        const docs  = await findAllIDs();
+        const title = await getTitle(req.params.id); 
+        res.render('defedit', { definitions : docs, title : title });
+    });
+
+app.route("/view")
+    .get( async (req,res) => {
         const docs = await findAllIDs();
-        // const doc  = await findID(req.params.id);
-        // res.render('defedit', { definitions : docs, svgelement : doc });
-        res.render('defedit', { definitions : docs });
+        res.render('viewmap', { definitions : docs });
     });
 
 
@@ -57,12 +71,23 @@ app.route("/api/def")
     .post((req,res) => { // new definiton
         const data = req.body;
         database.insert(data, (err, newDoc) => {
-            res.send({_id: newDoc._id});
+            res.send({_id: newDoc._id, title: newDoc.title});
         });
     })
-    .get((req,res) => { // show all definitions
+    .get((req,res) => { // return all definitions
         database.find({}, (err,docs) => {
             res.json(docs);
+        });
+    });
+
+app.route("/api/def/titles")
+    .get((req,res) => { // return all titles with Ids
+        database.find({}, (err,docs) => {
+            let data = [];
+            docs.forEach(el => {
+                data.push({title: el.title, id: el._id});
+            });
+            res.json(data);
         });
     });
 
@@ -74,8 +99,9 @@ app.route("/api/def/:id")
         
     })
     .put((req,res) => {
-        // const data = req.body.inner;
-        const data = req.body;
-        database.update({ _id: req.params.id }, { $set: { blocks : data } }, {});
+        const title = req.body.pop();
+        const data  = req.body;
+        database.update({ _id: req.params.id }, { $set: { title: title, blocks : data } }, {});
+
         res.json(data);
     });

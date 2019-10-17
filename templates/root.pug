@@ -3,7 +3,7 @@ extends layout
 block includeScripts
   link(rel='stylesheet' href='/style.css')
   script(type='text/javascript' src= '/js/snap.svg.js')
-  script(type='text/javascript' src= '/js/menu.js')
+  script(type='text/javascript' src= '/js/controls.js')
 
 block control
   br
@@ -12,11 +12,12 @@ block control
     button(onclick='fetchPostDef()').btn.btn-secondary + neue Definition
     button.btn.btn-secondary + neue Aussage
   li
+    input#titleInput(size='10' value=title)
     button(onclick='fetchPutDef()').btn.btn-secondary speichern
     button.btn.btn-danger loeschen
   br
-  h3 Definitions
+  h3 definitions
   for item in definitions
-    a(href="/def/" + item._id) bla
+    a(href="/def/" + item._id)= item.title + ' '
 
   

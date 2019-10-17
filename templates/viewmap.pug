@@ -1,13 +1,14 @@
-extends root
+extends layout
 
 block includeScripts
   link(rel='stylesheet' href='../style.css')
   script(type='text/javascript' src= '../js/snap.svg.js')
-  script(type='text/javascript' src= '../js/controls.js')
 
-block content
+block map
   br
   br
   
   svg#drawsvg
-  script(src="../js/def-editor.js")
+  script(src="../js/block.js")
+  script(src="../js/theorem.js")
+  script(src="../js/map-viewer.js")
