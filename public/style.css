@@ -9,7 +9,6 @@ canvas[resize] {
 } */
 #drawsvg{
     width:70%;
-    height:90%;
     background: lightgray;
 }
 .foreign {
@@ -19,6 +18,16 @@ canvas[resize] {
 .divinforeign {
     display: inline-block;  
 }
+
+.divinforeign p {
+    width: 350px;
+    /* display: block; */
+    white-space: pre-wrap;
+}
 #pagenav {
     list-style: none;
+}
+
+i {
+    background-color: darkturquoise;
 }

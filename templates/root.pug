@@ -10,14 +10,24 @@ block control
   ul#pagenav.list-group
   li
     button(onclick='fetchPostDef()').btn.btn-secondary + neue Definition
-    button.btn.btn-secondary + neue Aussage
+    button(onclick='fetchPostTheorem()').btn.btn-secondary + neue Aussage
   li
-    input#titleInput(size='10' value=title)
-    button(onclick='fetchPutDef()').btn.btn-secondary speichern
-    button.btn.btn-danger loeschen
+    if title      
+      input#titleInput(size='16' value=title placeholder="title")
+      if theorem
+        button(onclick='fetchPutTheorem()').btn.btn-secondary speichern
+        button.btn.btn-danger loeschen
+      else
+        button(onclick='fetchPutDefinition()').btn.btn-secondary speichern
+        button.btn.btn-danger loeschen
+      br
+      input#tagInput(size='32' value=tags placeholder="tags")
   br
   h3 definitions
   for item in definitions
     a(href="/def/" + item._id)= item.title + ' '
-
+  
+  h3 theorems
+  for item in theorems
+    a(href="/the/" + item._id)= item.title + ' '
   
