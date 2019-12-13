@@ -12,17 +12,21 @@ const buttonpos   = { bottom : 1, bottomright : 2, topright : 3, top : 4 };
  *          children: Array of numbers (nr)
  */
 class Block {
-    constructor(snap, json) {
+    constructor(snap, json) { // TODO: add params  editable & group?
         this._s     = snap;
         this._text  = json.text;
         this._text0 = json.text;
         this._nr    = json.nr;
         this._x     = json.x;
+        this.con    = json.con;
         this._y     = json.y;
+        this.hidden = false;
         this._type  = json.type; // blocktype:   prmise, proof, conclusion
+        this._txtY  = 20;
         this._parents   = json.parents || [];
         this._children  = json.children || [];
         this._btns      = [];
+        this._btnRadius = 11;
         this._width     = 390;
         // this._height    = 150;
         this._txtSize   = 100;  //in %
@@ -45,28 +49,79 @@ class Block {
         this._tmpOffsetX = 0;
         this._tmpOffsetY = 0;
     }
-    get width() { return parseInt(this._rect.attr("width")); }
-    get height() { return parseInt(this._rect.attr("height")); }
+    get width() { return this._width; }
+    get height() { return this._height; }
     set width(w) { this._width = w; }
     set height(h) { this._height = h; }
     set txtSize(t) { this._txtSize = t; }
-    get x() { return this._x; }
-    get y() { return  this._y; }
+    get x() { return parseInt(this._rect.attr("x")); }
+    get y() { return parseInt(this._rect.attr("y")); }
+    set x(x) {
+        this._x = x;
+        this._rect.attr({x: x});
+        if(this._check)
+            this._check.setAttributeNS(null, "transform", "translate(" + (this._x) + " " + (this._y) + ")");
+        if(this._nrTxt)
+            this._nrTxt.attr({x: x+20});
+        if(this._btns.top) {
+            this._btns.top.attr(     {x: x+this.width / 2});
+            this._btns.topright.attr({x: x+this.width});
+        }
+        if(this._btns.bottom) {
+            this._btns.bottom.attr(     {x: x+this.width / 2});
+            this._btns.bottomright.attr({x: x+this.width});
+        }
+        this.updateForeignXY();
+        
+    }
+    set y(y) {
+        this._y = y;
+        this._rect.attr({y: y});
+        if(this._nrTxt)
+            this._nrTxt.attr({y: y+20});
+        if(this._btns.top) {
+            this._btns.top.attr(     {y: y});
+            this._btns.topright.attr({y: y});
+        }
+        if(this._btns.bottom) {
+            this._btns.bottom.attr(     {y: y+this.height+this._btnRadius});
+            this._btns.bottomright.attr({y: y+this.height+this._btnRadius});
+        }
+        this.updateForeignXY();
+    }
     get tmpOffsetX() { return this._tmpOffsetX; }
     get tmpOffsetY() { return this._tmpOffsetY; }
     set tmpOffsetX(x) { this._tmpOffsetX = x; }
     set tmpOffsetY(y) { this._tmpOffsetY = y; }
     get nr() { return this._nr; }
     get text() { return this._text; }
-    set text(text) { this._text = text; }
+    get textWithMJ() { return this._txt.textpar.innerHTML; }
+    set text(text) {
+        this._text = text;
+        this._txt.textpar.innerHTML = text;
+        this.onTextChange(this._txt.textpar);
+    }
     get children() { return this._children };
+    get parents() { return this._parents };
     get type() { return this._type; }
     get paragraphElement( ) { return this._txt.textpar; }
-    addChild(child) { this._children.push(child); }
-    addParent(parent) { this._parents.push(parent); }
-    delChild(child) { this._children = this._children.filter( (val) => val != child); }
-    delParent(parent) { this._parents = this._parents.filter( (val) => val != parent); }
+    addChild(child) { if(this._children.indexOf(child.nr) == -1) this._children.push(child.nr); }
+    addParent(parent) { if(this._parents.indexOf(parent.nr) == -1) this._parents.push(parent.nr); }
+    delChild(child) { this._children = this._children.filter( (val) => val != child.nr); }
+    delParent(parent) { this._parents = this._parents.filter( (val) => val != parent.nr); }
+    replaceChild(oldChild, newChild) {
+        let i = this.children.indexOf(oldChild.nr);
+        this.children[i] = newChild.nr;
+    }
+    replaceParent(oldPar, newPar) {
+        let i = this.parents.indexOf(oldPar.nr);
+        this.parents[i] = newPar.nr;
+    }
 
+    // Snap Elements:
+    //      this._rect, this._nrTxt, this._btns.topright, this._btns.top, this._btns.bottomright, this._btns.bottom
+    // Foreign Elements:
+    //      this._txt, this._check,   (only as blocktype.definition:  this._name, this._alt )
     draw(editable, group){
         this._editable = editable;
         this._g = group;
@@ -74,24 +129,23 @@ class Block {
 
         // draw rect
         this._rect  = this._s.rect(
-                        this._x, this._y,
+                        0, 0,
                         this._width, this._height,
                         4
                     );
         group.add(this._rect);
                     
         // draw nr
-        // if(editable) {
-        //     this._nrTxt = this._s.text(+ this._x + 20,
-        //                     + this._y + 20, this._nr);
-        //     group.add(this._nrTxt);
-        // }
+        if(editable) {
+            this._nrTxt = this._s.text(20, 20, this._nr);
+            group.add(this._nrTxt);
+        }
         
         if(this._type == blocktype.definition)
-            this._height = this.drawDefElements(group);
+            this._height = this.drawDefElements(group, editable);
 
         // draw text
-        this._txt = this.createForeignText(this._y + this._height + 20, this._text);
+        this._txt = this.createForeignText(this._text, editable);
         this._height    += parseInt(this._txt.getAttribute("height"))+45;
         group.node.appendChild(this._txt);  // foreignObject
         
@@ -104,7 +158,7 @@ class Block {
         
         // adjust rect height
         this._rect.attr({
-            fill: "#1da",
+            fill: "#4e5d6c",
             stroke: "#000",
             strokeWidth: 2,
             height : this._height,
@@ -112,7 +166,10 @@ class Block {
 
 
         this._rect.hover(
-            () => this._rect.attr({style: "opacity: 0.5"}),
+            () => {
+                this._rect.attr({style: "opacity: 0.5"});
+                // console.log(group.getBBox());
+            },
             () => this._rect.attr({style: "opacity: 1"})
         );
 
@@ -127,34 +184,33 @@ class Block {
             this._btns.bottom       = this.createAddButton(buttonpos.bottom);
             group.add(this._btns.bottomright, this._btns.bottom);
         }
-    }
 
-    drawDefElements(group) {
-        let style = "font-weight: bold; text-align:center; width: 300px;";
-        let height = 0;
-        this._name = this.createForeignText(this._y + 20, this._nameText, style);
-        this._name.textpar.setAttribute("width", 150);
-        height = parseInt(this._name.getAttribute("height"));
-        this._alt = this.createForeignText(this._y + height + 20, "["+this._altText+"]", style);
-        height += parseInt(this._alt.getAttribute("height"));
-        group.node.appendChild(this._name);
-        group.node.appendChild(this._alt);
-        return height;
+        // trigger positioning of blocks objects
+        this.x = 0;
+        this.y = 0;  
     }
 
     resetText() {
         this._text = this._text0;
     }
 
+    setForeignXY(el,x,y) {
+        el.setAttributeNS(null, "transform", "translate(" + x + " " + y + ")");
+    }
+
+    updateForeignXY() {
+        this.setForeignXY(this._txt, this._x + 20, this._y + this._txtY);
+        if(this._check)
+            this.setForeignXY(this._check, this._x, this._y);
+    }
 
     /*
         creates editable text element <p> and adds it in foreign container to SVG
     */
-    createForeignText(y, text, style){
+    createForeignText(text, editable, style){
         var myforeign = document.createElementNS('http://www.w3.org/2000/svg', 'foreignObject')
         myforeign.setAttribute("width", "350");
         myforeign.classList.add("foreign"); //to make div fit text
-        myforeign.setAttributeNS(null, "transform", "translate(" + (this._x + 20) + " " + y + ")");
 
         var textdiv = document.createElement("div");
         textdiv.classList.add("divinforeign"); //to make div fit text
@@ -162,9 +218,9 @@ class Block {
         var textpar = document.createElement("p");
         textpar.innerHTML = text;
         textpar.setAttribute('style', (style||''));
-        textpar.className = "text-secondary";
-        textpar.setAttribute("contentEditable", "true");
-        // textpar.setAttribute("width", "auto");
+        textpar.className = "text-white";
+        if(editable)
+            textpar.setAttribute("contentEditable", "true");
         textpar.addEventListener("input", (ev) => this.onTextChange(ev.target, ev.data)); // ev.target is textpar
         myforeign.textpar = textpar;
 
@@ -177,12 +233,30 @@ class Block {
         return myforeign;
     }
 
+    drawDefElements(group, editable) {
+        let height  = 0;
+        this._name  = this.createForeignText(this._nameText, editable);
+        this.setForeignXY(this._name, this._x + 20, this._y + 20);
+        this._name.textpar.classList.add("blockheader");
+        this._name.textpar.classList.add("defheader");
+        // this._name.textpar.setAttribute("width", 150);
+        height      = parseInt(this._name.getAttribute("height"));
+        this._alt   = this.createForeignText("["+this._altText+"]", editable);
+        this.setForeignXY(this._alt, this._x + 20, this._y + height + 20);
+        this._alt.textpar.classList.add("blockheader");
+        this._alt.textpar.classList.add("defheader");
+        height      += parseInt(this._alt.getAttribute("height"));
+        group.node.appendChild(this._name);
+        group.node.appendChild(this._alt);
+        this._txtY  = height + 20;
+        return height;
+    }
+
     createConclCheckbox() {
         // <input type="checkbox" class="custom-control-input" id="customSwitch1" checked=""></input>
-        var myforeign = document.createElementNS('http://www.w3.org/2000/svg', 'foreignObject')
+        var myforeign = document.createElementNS('http://www.w3.org/2000/svg', 'foreignObject');
         myforeign.setAttribute("width", "30");
         myforeign.setAttribute("height", "30");
-        myforeign.setAttributeNS(null, "transform", "translate(" + (this._x) + " " + (this._y) + ")");
 
         var inputdiv = document.createElement("div");
         inputdiv.classList.add("form-check"); //to make div fit text
@@ -215,6 +289,7 @@ class Block {
         // }
 
         let h = this._txt.textpar.offsetHeight;
+
         if (this._type == blocktype.definition) {
             h += this._name.textpar.offsetHeight;
             h += this._alt.textpar.offsetHeight;
@@ -225,15 +300,15 @@ class Block {
     
 
     rescale(newHeight) {
-        let oldh        = parseInt(this.height);
+        let oldh        = this._height;
+        this._height = newHeight;
         let hdif        = newHeight - oldh;
 
         // set rect new height
         this._rect.attr({height : newHeight});
         // set foreign element new height
-        this._txt.setAttribute("height", this._txt.textpar.offsetHeight);
+        this._txt.setAttribute("height", (this._txt.textpar.offsetHeight || 1));
         if(this._type == blocktype.definition) {
-            let h = this._name.textpar.offsetHeight;
             this._name.setAttribute("height", this._name.textpar.offsetHeight);
             this._alt.setAttributeNS(null, "transform", "translate(" +
                 (this._x + 20) + " " + (this._y + 20 + this._name.textpar.offsetHeight) + ")");
@@ -241,43 +316,14 @@ class Block {
             this._txt.setAttributeNS(null, "transform", "translate(" +
                 (this._x + 20) + " " + (this._y + 20  + this._name.textpar.offsetHeight +
                 this._alt.textpar.offsetHeight) + ")");
-        } else {
+        } else if(this._editable) {
             // set buttons new y
-            let oldBottomY  = parseInt(this._btns.bottom[0].attr('cy'));
-            this._btns.bottom.attr({ y : oldBottomY + hdif });
-            this._btns.bottomright.attr({ y : oldBottomY + hdif });
+            this._btns.bottom.attr({ y : "+="+hdif });
+            this._btns.bottomright.attr({ y : "+="+hdif });
         }
 
         // run additional method set by onRescale(fn)
-        this.onRescaleFn(this, hdif);
-    }
-
-    move(dx, dy) {
-        this._x = this._x + dx;
-        this._y = this._y + dy;
-        
-        const transformstring = "t"+(this._moveOffsetX+dx)+","+(this._moveOffsetY+dy);
-
-        // move every element
-        this._rect.transform(transformstring);
-        if(this._editable) {
-            // this._nrTxt.transform(transformstring);
-            this._txt.setAttributeNS(null, "transform", "translate( " + (this._x+20) + " " + (this._y+20) + ")");
-            this._check.setAttributeNS(null, "transform", "translate( " + (this._x) + " " + (this._y) + ")");
-            this.transformSet(this._btns.bottom, transformstring);
-            this.transformSet(this._btns.bottomright, transformstring);
-            if(this._type != blocktype.premise) {
-                this.transformSet(this._btns.top, transformstring);
-                this.transformSet(this._btns.topright, transformstring);
-            }
-        }
-        else {
-            this.transformSet(this._txt, transformstring);
-        }
-        
-        // save offset for further moves
-        this._moveOffsetX += dx;
-        this._moveOffsetY += dy;
+        this.onRescaleFn();
     }
 
     transformSet(set, transformation) {
@@ -288,52 +334,43 @@ class Block {
 
 
     createAddButton(relativePos) {
-        let btnX = 0;
-        let btnY = 0;
-        let    r = 11;
-        switch (relativePos) {
-            case buttonpos.bottom:
-                btnX = this._x + this.width / 2;
-                btnY = this._y + this.height + r;
-                break;
-            case buttonpos.bottomright:
-                btnX = this._x + this.width;
-                btnY = this._y + this.height + r;
-                break;
-            case buttonpos.topright:
-                btnX = this._x + this.width;
-                btnY = this._y;
-                break;
-            case buttonpos.top:
-                btnX = this._x + this.width / 2;
-                btnY = this._y;
-                break;
-        }
-        let addButton   = this._s.circle(btnX,btnY,11);
+        let addButton   = this._s.circle(0,0,this._btnRadius);
         addButton.attr({
-            fill: "#3ca",
+            fill: "#ef6c00",
             stroke: "#000",
             strokeWidth: 1
         });
-        let txt         = this._s.text((btnX-4),(btnY+3), "+");
+        let txt         = this._s.text(-4,+3, "+");
         
         addButton.click(() => this.onAddButtonClickFn(this, relativePos));
         txt.click(() => this.onAddButtonClickFn(this, relativePos));
 
         let set = Snap.set(addButton, txt)
         set.bind("y", (y) => {
-            txt.attr({y : y});
+            txt.attr({y : y+3});
             addButton.attr({cy : y});
             return y;
         });
         set.bind("x", (x) => {
-            txt.attr({x : x});
+            txt.attr({x : x-4});
             addButton.attr({cx : x});
         });
 
         return set;
     }
     
+    hide() {
+        this._rect.node.classList.add("d-none");
+        this._txt.classList.add("d-none");      
+        this.hidden = true;  
+    }
+    
+    show() {
+        this._rect.node.classList.remove("d-none");
+        this._txt.classList.remove("d-none");    
+        this.hidden = false;
+    }
+
     remove() {
         // move every element
         this._rect.remove();
@@ -348,7 +385,8 @@ class Block {
     }
 
     asObj() {
-        console.log(this._type == blocktype.definition);
+        let con = this.findConnections();
+        
         if(this._type == blocktype.definition) {
             let alts = this._altText.split(";");
             alts = alts.filter(alt => alt);
@@ -359,6 +397,7 @@ class Block {
                 type : this._type,
                 name : this._nameText,
                 alt : alts,
+                con : con,
             }
         } else {
             return {
@@ -369,10 +408,30 @@ class Block {
                 type : this._type,
                 parents : this._parents,
                 children : this._children,
+                con : con,
             }
         }
     }
 
+    findConnections() {
+        const regex = /<i id="([^"]+)">[^<]+<\/i>/gm; // thanks to https://regex101.com/
+        let m;
+        let con = [];
+
+        while ((m = regex.exec(this._text)) !== null) {
+            // This is necessary to avoid infinite loops with zero-width matches
+            if (m.index === regex.lastIndex) {
+                regex.lastIndex++;
+            }
+            
+            // The result can be accessed through the `m`-variable.
+            // m.forEach((match, groupIndex) => {
+            //     console.log(`Found match, group ${groupIndex}: ${match}`);
+            // });
+            con.push(m[1]);
+        }
+        return con;
+    }
 
     /*
         fn(hdif)   Parameters:

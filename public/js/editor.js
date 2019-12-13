@@ -6,6 +6,7 @@ const editor = (function() {
     let   theorem   = [];
     let   definition    = {};
     let   g             = s.g();
+    g.transform(Snap.matrix(1,0,0,1,40,40));
     let   isDefeditor   = false;
 
     async function showTitles(onSelect) {

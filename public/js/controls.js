@@ -5,12 +5,15 @@ function fetchPostTheorem() {
     body: JSON.stringify({   
       title : "neu",
       blocks : [{  // default block
-          x: 40,
-          y: 40,
+          x: 0,
+          y: 0,
           text: "edit me",
           nr: 1,
           type: 1,  // = blocktype.premise
+          con: [],
       }],
+      x:0,
+      y:0
     })
   }
   fetch('/api/the', options) // POST
@@ -30,13 +33,16 @@ function fetchPostDef() {
     body: JSON.stringify({   
       title : "neu",
       block : {  // default block
-          x: 40,
-          y: 40,
+          x: 0,
+          y: 0,
           text: "edit me",
           name: "name",
           alt: ["alternative"],
           type: 4,  // = blocktype.definition
       },
+      x:0,
+      y:0,
+      con: [],
     })
   }
   fetch('/api/def', options) // POST

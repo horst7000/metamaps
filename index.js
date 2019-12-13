@@ -21,7 +21,7 @@ app.get('/bla', (req, res) =>
     res.send({data: "Homepage"})
 );
 
-function getAllTheoremIDs() {
+function getAllTheorems() {
     return new Promise(resolve => {
         dbTheorems.find({}, (err, docs) => {
             // console.log(docs);        
@@ -40,7 +40,7 @@ function getTheoremHeader(id) {
     });
 }
 
-function getAllDefinitionIDs() {
+function getAllDefinitions() {
     return new Promise(resolve => {
         dbDefinitions.find({}, (err, docs) => {
             resolve(docs);
@@ -69,15 +69,15 @@ function getDefinitionHeader(id) {
 
 app.route("/")
     .get( async (req,res) => {
-        const defs = await getAllDefinitionIDs();
-        const thes = await getAllTheoremIDs();
+        const defs = await getAllDefinitions();
+        const thes = await getAllTheorems();
         res.render('root', { definitions : defs, theorems : thes});
     });
 
 app.route("/the/:id") 
     .get( async (req,res) => {
-        const defs = await getAllDefinitionIDs();
-        const thes = await getAllTheoremIDs();
+        const defs = await getAllDefinitions();
+        const thes = await getAllTheorems();
         const h = await getTheoremHeader(req.params.id); 
         res.render('edit', {
             definitions : defs,
@@ -90,8 +90,8 @@ app.route("/the/:id")
 
 app.route("/def/:id") 
     .get( async (req,res) => {
-        const defs = await getAllDefinitionIDs();
-        const thes = await getAllTheoremIDs();
+        const defs = await getAllDefinitions();
+        const thes = await getAllTheorems();
         const h = await getDefinitionHeader(req.params.id); 
         res.render('edit', {
             definitions : defs,
@@ -104,19 +104,19 @@ app.route("/def/:id")
 
 app.route("/view")
     .get( async (req,res) => {
-        const docs = await getAllTheoremIDs();
+        const docs = await getAllTheorems();
         res.render('viewmap');
     });
 
 
 app.route("/api/the")
-    .post((req,res) => { // new definiton
+    .post((req,res) => { // new theorem
         const data = req.body;
         dbTheorems.insert(data, (err, newDoc) => {
             res.send({_id: newDoc._id, title: newDoc.title});
         });
     })
-    .get((req,res) => { // return all definitions
+    .get((req,res) => { // return all theorems
         dbTheorems.find({}, (err,docs) => {
             res.json(docs);
         });
@@ -227,3 +227,176 @@ app.route("/api/def/:id")
 
         res.json(data);
     });
+
+app.route("/api/positions")
+    .get(async (req,res) => {
+        await calcPositions(1);
+        let data = [];
+        dbDefinitions.find({}, (err, defs) => {
+            defs.forEach(def => {
+                data.push({id:def._id, x:def.x, y:def.y});
+            });
+            dbTheorems.find({}, (err, ths) => {
+                ths.forEach(th => {
+                    data.push({id:th._id, x:th.x, y:th.y});
+                });
+                res.json(data);
+            });
+        });
+    });
+
+app.route("/api/positions/reset") // temporary
+    .get(async (req,res) => {
+        let defs = await getAllDefinitions();
+        let ths  = await getAllTheorems();
+        defs.forEach(def => {
+            dbDefinitions.update({ _id: def._id }, { $set: { x: 0, y: 0} });
+        });
+        ths.forEach(th => {
+            dbTheorems.update({ _id: th._id }, { $set: { x: 0, y: 0} });    
+        });
+        calcPositions(50);
+
+        res.json();
+    });
+
+async function calcPositions(repetitions) {
+    let defs = await getAllDefinitions();
+    let ths  = await getAllTheorems();
+    await updatePositions(defs,ths,repetitions);    
+}
+
+async function updatePositions(defs,ths,repetitions=1) {
+    // combine sets
+    let vertices = [];
+    ths.forEach(th => {
+        th.con = [];
+        th.blocks.forEach(bl => {
+            th.con = th.con.concat(bl.con);
+        });
+        vertices.push(th);
+        th.forceX = 0;
+        th.forceY = 0;
+    });
+    defs.forEach(def => {
+        def.con = def.block.con;
+        vertices.push(def);
+        def.forceX = 0;
+        def.forceY = 0;
+    });
+
+    for (let i = 0; i < repetitions; i++) {
+        // calculate forces
+        calcForces(vertices,defs,ths)
+        
+        // update position without DB
+        vertices.forEach(el => {
+            let fx = Math.floor(el.forceX);
+            let fy = Math.floor(el.forceY);
+            el.x +=fx;
+            el.y +=fy;
+            el.forceX = 0;
+            el.forceY = 0;
+        });
+    }
+
+    // update position in DB
+    vertices.forEach(el => {
+        let fx = Math.floor(el.forceX);
+        let fy = Math.floor(el.forceY);
+        el.forceX = 0;
+        el.forceY = 0;
+        
+        new Promise(resolve => {
+            if(el.blocks)
+                dbTheorems.update({ _id: el._id }, { $set: { x: el.x+fx, y: el.y+fy} },{resolve});
+            else
+                dbDefinitions.update({ _id: el._id }, { $set: { x: el.x+fx, y: el.y+fy} },{resolve});
+        });
+    });
+}
+
+function calcForces(vertices,defs,ths) {
+    vertices.forEach(elA => {
+        vertices.forEach(elB => {
+            let force = repulsiveForce(elA,elB);
+			elA.forceX += force.x;
+            elA.forceY += force.y;
+            
+        });
+        force = gravity(elA);
+        elA.forceX += force.x;
+        elA.forceY += force.y;
+
+        elA.con.forEach(conID => {
+            elCon = findByID(conID,defs,ths);
+
+            let force = attractiveForce(elA,elCon);
+			elA.forceX += force.x;
+            elA.forceY += force.y;
+
+            force = attractiveForce(elCon,elA);
+			elCon.forceX += force.x;
+            elCon.forceY += force.y;
+        });
+    });
+}
+
+function dist(a,b) {
+    // -2*150 with 150 is max.distance from center to edge
+    return Math.sqrt(Math.pow(a.x-b.x,2) + Math.pow(a.y-b.y,2))-300;
+}
+
+function repulsiveForce(a,b) {
+    const c0 = 1*1E2;      // repulsive
+    let degA = a.con.length;
+    let degB = b.con.length; // TODO?: number of INcoming edges
+    
+    if(a._id == b._id)
+        return {x:0, y:0};
+
+    let d = dist(a,b);
+    if(d<=0) {
+        a.x += -25+Math.floor(Math.random()*50);
+        a.y += -25+Math.floor(Math.random()*50);
+        d = Math.sqrt(c0);
+    }
+    return {
+        x:c0*(degA+1)*(degB+1)/Math.pow(d,1.5) * (a.x-b.x),
+        y:c0*(degA+1)*(degB+1)/Math.pow(d,1.6) * (a.y-b.y)
+    };
+}
+
+function attractiveForce(a,b) {
+    const c1 = 0.12; // attractive
+    let d = dist(a,b);
+    let defaultDist = 90;
+
+    if(a._id == b._id || d <= 0)
+        return {x:0, y:0};
+    
+    return {
+        x:-0.5*c1*(d-0) * (a.x-b.x)/d,
+        y:-c1*(d-0) * (a.y-b.y)/d
+    };
+}
+
+function gravity(a) {
+    const c2 = 6*1E-2;
+    let degA = a.con.length;
+    let d = Math.sqrt(Math.pow(a.x,2) + Math.pow(a.y,2));
+    return {
+        x: -c2*Math.pow(d,1) * (degA+1) * a.x/d,
+        y: -c2*Math.pow(d,1) * (degA+1) * a.y/d,
+    };
+}
+
+
+function findByID(id,defs,ths) {
+    for (let i = 0; i < defs.length; i++)
+        if (defs[i]._id == id)
+            return defs[i];
+    for (let i = 0; i < ths.length; i++)
+        if (ths[i]._id == id)
+            return ths[i];   
+}

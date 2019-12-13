@@ -28,6 +28,17 @@ canvas[resize] {
     list-style: none;
 }
 
+.blockheader {
+    font-weight: bold;
+    width: 300px;
+    font-size: 1.3rem;
+}
+
+.defheader {
+    text-align: center;    
+}
+
+
 i {
     background-color: darkturquoise;
 }

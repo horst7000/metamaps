@@ -6,11 +6,21 @@ block includeScripts
   script(type='text/javascript' src= '/js/controls.js')
 
 block control
-  br
   ul#pagenav.list-group
   li
     button(onclick='fetchPostDef()').btn.btn-secondary + neue Definition
     button(onclick='fetchPostTheorem()').btn.btn-secondary + neue Aussage
+  br
+  h3 definitions
+  for item in definitions
+    a(href="/def/" + item._id)= item.title + ' '
+  
+  h3 theorems
+  for item in theorems
+    a(href="/the/" + item._id)= item.title + ' '
+  
+  br
+  br
   li
     if title      
       input#titleInput(size='16' value=title placeholder="title")
@@ -22,12 +32,3 @@ block control
         button.btn.btn-danger loeschen
       br
       input#tagInput(size='32' value=tags placeholder="tags")
-  br
-  h3 definitions
-  for item in definitions
-    a(href="/def/" + item._id)= item.title + ' '
-  
-  h3 theorems
-  for item in theorems
-    a(href="/the/" + item._id)= item.title + ' '
-  
