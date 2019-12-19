@@ -58,22 +58,16 @@
         });
     };
 
-    function avoidOverlapping() { // TODO: implement WebCola vpsc.ts 
-        definitions.forEach(defA => {
-            definitions.forEach(defB => {
-                pushAway(defA,defB);
+    function avoidOverlapping(elements) { // TODO: implement WebCola vpsc.ts 
+        if(!elements)
+            elements = definitions.concat(theorems);
+
+        elements.forEach(el => {
+            definitions.forEach(def => {
+                pushAway(el,def);
             });
             theorems.forEach(th => {
-                pushAway(defA,th);
-            });
-        });
-
-        theorems.forEach(thA => {
-            definitions.forEach(def => {
-                pushAway(thA,def);
-            });
-            theorems.forEach(thB => {
-                pushAway(thA,thB);
+                pushAway(el,th);
             });
         });
         drawConnections();
@@ -87,28 +81,28 @@
             let dx = b.x - (a.x + a.width); //left
             let dy = b.y - (a.y + a.height); //top
             if(dx < 0 && dy < 0) {
-                a.moveBy(dx/3,dy/3);
+                a.moveBy(dx/4,dy/4);
                 b.moveBy(-dx/3,-dy/3);
             }
         } else if(a.x > b.x && a.y < b.y) { // a to the top right of b
             let dx = a.x - (b.x + b.width); //right
             let dy = b.y - (a.y + a.height); //top
             if(dx < 0 && dy < 0) {
-                a.moveBy(-dx/3,dy/3);
+                a.moveBy(-dx/4,dy/4);
                 b.moveBy(dx/3,-dy/3);
             }
         } else if(a.x < b.x && a.y > b.y) { // a to the bottom left of b
             let dx = b.x - (a.x + a.width); //left
             let dy = a.y - (b.y + b.height); //bottom
             if(dx < 0 && dy < 0) {
-                a.moveBy(dx/3,-dy/3);
+                a.moveBy(dx/4,-dy/4);
                 b.moveBy(-dx/3,dy/3);
             }
         } else { // a to the bottom right of b
             let dx = a.x - (b.x + b.width); //right
             let dy = a.y - (b.y + b.height); //bottom
             if(dx < 0 && dy < 0) {
-                a.moveBy(-dx/3,-dy/3);
+                a.moveBy(-dx/4,-dy/4);
                 b.moveBy(dx/3,dy/3);
             }
         }
@@ -299,6 +293,16 @@
         const jsondefs     = await loadBlocksFromAPI("def");
         drawBlocks(jsontheorems, jsondefs);
         await MathJax.typesetPromise();
+
+        // refresh blocks height after MathJax typeset
+        theorems.forEach(th => {
+            th.refreshHeight();
+        });
+        definitions.forEach(def => {
+            def.refreshHeight();
+        });
+
+
         makeBlocksDraggable();
 
         // save texts for collapse/expand during zooming
@@ -307,6 +311,13 @@
         });
         definitions.forEach(def => {
             def.saveTextWithMathJax();
+        });
+
+        Theorem.prototype.avoidOverlapping = avoidOverlapping;
+
+        //initial collapse
+        theorems.forEach(th => {
+            th.collapseToCore();
         });
 
         detectConnectedObjects();

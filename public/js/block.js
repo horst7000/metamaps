@@ -105,6 +105,13 @@ class Block {
     get parents() { return this._parents };
     get type() { return this._type; }
     get paragraphElement( ) { return this._txt.textpar; }
+    get foreigns() { // this._check not included
+        let fe = [this._txt];
+        if(this._type == blocktype.definition) {
+            fe.push(this._name, this._alt);
+        }
+        return fe;
+    }
     addChild(child) { if(this._children.indexOf(child.nr) == -1) this._children.push(child.nr); }
     addParent(parent) { if(this._parents.indexOf(parent.nr) == -1) this._parents.push(parent.nr); }
     delChild(child) { this._children = this._children.filter( (val) => val != child.nr); }
@@ -126,12 +133,13 @@ class Block {
         this._editable = editable;
         this._g = group;
         this._height = 0;
+        let roundedCornerRadius = this._type == blocktype.definition ? 7 : 0;
 
         // draw rect
         this._rect  = this._s.rect(
                         0, 0,
                         this._width, this._height,
-                        4
+                        roundedCornerRadius
                     );
         group.add(this._rect);
                     
@@ -164,14 +172,6 @@ class Block {
             height : this._height,
         });
 
-
-        this._rect.hover(
-            () => {
-                this._rect.attr({style: "opacity: 0.5"});
-                // console.log(group.getBBox());
-            },
-            () => this._rect.attr({style: "opacity: 1"})
-        );
 
         // draw buttons
         if(editable && this._type != blocktype.definition) {
@@ -288,39 +288,36 @@ class Block {
         //         this._specialLetterFns[i](p);
         // }
 
-        let h = this._txt.textpar.offsetHeight;
-
-        if (this._type == blocktype.definition) {
-            h += this._name.textpar.offsetHeight;
-            h += this._alt.textpar.offsetHeight;
-        }
-        this.rescale(h+45);
+        this.refreshHeight();
     }
 
-    
-
-    rescale(newHeight) {
-        let oldh        = this._height;
-        this._height = newHeight;
-        let hdif        = newHeight - oldh;
-
-        // set rect new height
-        this._rect.attr({height : newHeight});
+    refreshHeight() {
+        let h = 45;
+        let hTxt = this._txt.textpar.offsetHeight || 1;
+        this._txt.setAttribute("height", hTxt);
+        h += hTxt;
+        
         // set foreign element new height
-        this._txt.setAttribute("height", (this._txt.textpar.offsetHeight || 1));
         if(this._type == blocktype.definition) {
-            this._name.setAttribute("height", this._name.textpar.offsetHeight);
+            let hName = this._name.textpar.offsetHeight;
+            this._name.setAttribute("height", hName);
+            let hAlt  = this._alt.textpar.offsetHeight;
+            this._alt.setAttribute("height", hAlt);
+            h += hName + hAlt;
+            // adjust x,y of alt & txt
             this._alt.setAttributeNS(null, "transform", "translate(" +
-                (this._x + 20) + " " + (this._y + 20 + this._name.textpar.offsetHeight) + ")");
-            this._alt.setAttribute("height", this._alt.textpar.offsetHeight);
+                (this._x + 20) + " " + (this._y + 20 + hName) + ")");
             this._txt.setAttributeNS(null, "transform", "translate(" +
-                (this._x + 20) + " " + (this._y + 20  + this._name.textpar.offsetHeight +
-                this._alt.textpar.offsetHeight) + ")");
+                (this._x + 20) + " " + (this._y + 20  + hName + hAlt) + ")");
         } else if(this._editable) {
             // set buttons new y
-            this._btns.bottom.attr({ y : "+="+hdif });
-            this._btns.bottomright.attr({ y : "+="+hdif });
+            this._btns.bottom.attr({ y : "+="+(h-this._height) });
+            this._btns.bottomright.attr({ y : "+="+(h-this._height) });
         }
+
+        // set rect new height
+        this._rect.attr({height : h});
+        this._height = h;
 
         // run additional method set by onRescale(fn)
         this.onRescaleFn();

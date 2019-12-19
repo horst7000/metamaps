@@ -1,3 +1,5 @@
+const viewStatus   = { expanded : 1, core : 2, title : 3 };
+
 class Theorem {
     constructor(snap, json) {
         this._title = json.title;
@@ -9,6 +11,8 @@ class Theorem {
         this._y = 0;
         this._g = this._s.g();
         this._blockwidth = 390;
+        this._status = viewStatus.core;
+        this._vizeStatus = viewStatus.core;
         
         this._blocks = [];
         json.blocks.forEach(block => {
@@ -40,7 +44,8 @@ class Theorem {
         group.add(this._g);
     }
 
-    blockPosRecursive(blockNr=1, done=[], column=0, columnheights=[0,0,0,0]) {        
+    blockPosRecursive(blockNr=1, done=[], column=0, columnheights=[0,0,0,0]) {  
+        console.log("recursive call "+this._title);
         // console.log(blockNr+" called. Column: "+column+ " @ "+columnheights[column]);
         let block   = this.getBlockByNr(blockNr);
         block.x     = (this._blockwidth+5) * column;
@@ -85,31 +90,61 @@ class Theorem {
         else
             return block.y+block.height;
     }
+    
+    click() {
+        if(this._status == viewStatus.expanded) {
+            switch (this._vizeStatus) {
+                case viewStatus.title:
+                    this._status = viewStatus.title;
+                    this.collapseToTitle();
+                    break;
+            
+                default:
+                    this._status = viewStatus.core;
+                    this.collapseToCore();
+                    break;
+            }
+
+        } else {
+            this._vizeStatus = this._status;
+            this.expand();
+        }
+    }
 
     collapseToTitle() {
-        let premiseBlock = {};
-        this._blocks.forEach(block => {
-            block.hide();
-            if(block.type == blocktype.premise)
-                premiseBlock = block;
-        });
-        premiseBlock.show();
-        premiseBlock.text = this._title;
-        premiseBlock.paragraphElement.classList.add("blockheader");
+        if(this._status != viewStatus.expanded) {
+            let premiseBlock = {};
+            this._blocks.forEach(block => {
+                block.hide();
+                if(block.type == blocktype.premise)
+                    premiseBlock = block;
+            });
+            premiseBlock.show();
+            premiseBlock.text = this._title;
+            premiseBlock.paragraphElement.classList.add("blockheader");
+            this._status = viewStatus.title;
+        } else {
+            this._vizeStatus = viewStatus.title;
+        }
     }
     
     collapseToCore() {
-        let premiseBlock = {};
-        this._blocks.forEach(block => {
-            block.hide();
-            if(block.type == blocktype.premise)
-                premiseBlock = block;
-            if(block.type == blocktype.conclusion)
-                block.show();
-        });
-        premiseBlock.show();
-        premiseBlock.text = this._premiseTextWithMJ;
-        premiseBlock.paragraphElement.classList.remove("blockheader");
+        if(this._status != viewStatus.expanded) {
+            let premiseBlock = {};
+            this._blocks.forEach(block => {
+                block.hide();
+                if(block.type == blocktype.premise)
+                    premiseBlock = block;
+                if(block.type == blocktype.conclusion)
+                    block.show();
+            });
+            premiseBlock.show();
+            premiseBlock.text = this._premiseTextWithMJ;
+            premiseBlock.paragraphElement.classList.remove("blockheader");
+            this._status = viewStatus.core;
+        } else {
+            this._vizeStatus = viewStatus.core;
+        }
     }
 
     draw(editable) {
@@ -118,15 +153,45 @@ class Theorem {
             if(editable && this._tribute)
                 this._tribute.attach(block.paragraphElement);
         });
+        this.postDraw(editable);
+    }
+
+    postDraw(editable) {
+        // add hover listener
+        if(!editable) {
+            this._blocks.forEach(bl => {
+                bl.foreigns.forEach(fe => {
+                    fe.addEventListener("mouseover",  () => this.mouseover());
+                    fe.addEventListener("mouseout",  () => this.mouseout());
+                });    
+                bl._rect.hover(() => this.mouseover(),() => this.mouseout());
+            });
+        }
+
+        // add click listener
+        if(!editable) {
+            this._blocks.forEach(bl => {
+                bl.foreigns.forEach(fe => {
+                    fe.addEventListener("click",  () => this.click());
+                });    
+                bl._rect.click(() => this.click());
+            });
+        }
 
         this.blockPosRecursive(1);
     }
 
     expand() {
+        // title -> core first
+        if(this._status == viewStatus.title)
+            this.collapseToCore();
+
         this._blocks.forEach(block => {
             block.show();
         });
         this.blockPosRecursive();
+        this.avoidOverlapping();
+        this._status = viewStatus.expanded;
     }
     
     getBlockByNr(nr) {
@@ -136,15 +201,22 @@ class Theorem {
         }
     }
 
-    saveTextWithMathJax() {
-        // save text of premise for collapsing / expanding
-        this._premiseTextWithMJ = this._blocks[0].textWithMJ;
-    }
-
     moveBy(dx, dy) {
         this._x += dx;
         this._y += dy;
         this._g.transform("t("+this._x+","+this._y+")");
+    }
+
+    mouseover() {
+        this._blocks.forEach(bl => {
+            bl._rect.attr({style: "opacity: 0.5"});
+        });
+    }
+
+    mouseout() {
+        this._blocks.forEach(bl => {
+            bl._rect.attr({style: "opacity: 1"});
+        });
     }
 
     insertBlock(triggerBlock, relativePos) {
@@ -210,6 +282,17 @@ class Theorem {
         //     console.log("P: "+block.parents);
         // });
         this.blockPosRecursive();
+    }
+
+    refreshHeight() {
+        this._blocks.forEach(bl => {
+            bl.refreshHeight();
+        });
+    }
+
+    saveTextWithMathJax() {
+        // save text of premise for collapsing / expanding
+        this._premiseTextWithMJ = this._blocks[0].textWithMJ;
     }
 
     connect(parentBlock, childBlock) {

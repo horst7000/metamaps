@@ -207,6 +207,7 @@ app.route("/api/the/:id")
         dbTheorems.update({ _id: req.params.id }, { $set: { title: title, blocks : data, tags: tags } }, {});
 
         res.json(data);
+        calcPositions(10);
     });
 
 
@@ -226,9 +227,10 @@ app.route("/api/def/:id")
         dbDefinitions.update({ _id: req.params.id }, { $set: { title: title, block: data, tags: tags } }, {});
 
         res.json(data);
+        calcPositions(10);
     });
 
-app.route("/api/positions")
+app.route("/api/positions") //TMP (get changes DB)
     .get(async (req,res) => {
         await calcPositions(1);
         let data = [];
@@ -255,7 +257,7 @@ app.route("/api/positions/reset") // temporary
         ths.forEach(th => {
             dbTheorems.update({ _id: th._id }, { $set: { x: 0, y: 0} });    
         });
-        calcPositions(50);
+        calcPositions(200);
 
         res.json();
     });
@@ -347,8 +349,8 @@ function dist(a,b) {
     return Math.sqrt(Math.pow(a.x-b.x,2) + Math.pow(a.y-b.y,2))-300;
 }
 
+const c0 = 500; // repulsive
 function repulsiveForce(a,b) {
-    const c0 = 1*1E2;      // repulsive
     let degA = a.con.length;
     let degB = b.con.length; // TODO?: number of INcoming edges
     
@@ -356,38 +358,44 @@ function repulsiveForce(a,b) {
         return {x:0, y:0};
 
     let d = dist(a,b);
-    if(d<=0) {
+    if(d<=50) {
         a.x += -25+Math.floor(Math.random()*50);
         a.y += -25+Math.floor(Math.random()*50);
-        d = Math.sqrt(c0);
+        d = 50;
     }
+    let x = c0*Math.sqrt((degA+1)*(degB+1))/Math.pow(d,1.9) * (a.x-b.x);
+    let y = c0*Math.sqrt((degA+1)*(degB+1))/Math.pow(d,2) * (a.y-b.y);
+    if(x > 1000)
+        console.log(`${c0}*${(degA+1)}*${(degB+1)}/${Math.pow(d,2)} * ${(a.x-b.x)} = ${x}`);
     return {
-        x:c0*(degA+1)*(degB+1)/Math.pow(d,1.5) * (a.x-b.x),
-        y:c0*(degA+1)*(degB+1)/Math.pow(d,1.6) * (a.y-b.y)
+        x:x,
+        y:y
     };
 }
 
+// c1 = 8 * 1E-2;
 function attractiveForce(a,b) {
-    const c1 = 0.12; // attractive
+    const c1 = 8*1E-2; // attractive
     let d = dist(a,b);
-    let defaultDist = 90;
+    let defaultDist = 180;
 
     if(a._id == b._id || d <= 0)
         return {x:0, y:0};
     
     return {
-        x:-0.5*c1*(d-0) * (a.x-b.x)/d,
-        y:-c1*(d-0) * (a.y-b.y)/d
+        x:-c1*(d-defaultDist) * (a.x-b.x)/d,
+        y:-c1*(d-defaultDist/3) * (a.y-b.y)/d
     };
 }
 
+// c2 = 4*1E-2;
 function gravity(a) {
-    const c2 = 6*1E-2;
+    const c2 = 4*1E-2;
     let degA = a.con.length;
     let d = Math.sqrt(Math.pow(a.x,2) + Math.pow(a.y,2));
     return {
-        x: -c2*Math.pow(d,1) * (degA+1) * a.x/d,
-        y: -c2*Math.pow(d,1) * (degA+1) * a.y/d,
+        x: -c2*Math.pow(d,1) * (degA+0.3) * a.x/d,
+        y: -c2*Math.pow(d,1) * (degA+0.3) * a.y/d,
     };
 }
 

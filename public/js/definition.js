@@ -36,6 +36,19 @@ class Definition {
         this._block.draw(editable, this._g);
         if(editable && this._tribute)
             this._tribute.attach(this._block.paragraphElement);
+        
+        this.postDraw(editable);
+    }
+
+    postDraw(editable) {
+        // add hover listener
+        if(!editable) {
+            this._block.foreigns.forEach(fe => {
+                fe.addEventListener("mouseover",  () => this.mouseover());
+                fe.addEventListener("mouseout",  () => this.mouseout());
+            });    
+            this._block._rect.hover(() => this.mouseover(),() => this.mouseout());
+        }
     }
 
     moveBy(dx, dy) {
@@ -43,6 +56,19 @@ class Definition {
         this._y += dy;
         this._g.transform("t("+this._x+","+this._y+")");
     }
+    
+    mouseover() {
+        this._block._rect.attr({style: "opacity: 0.92"});
+    }
+
+    mouseout() {
+        this._block._rect.attr({style: "opacity: 1"});
+    }
+
+    refreshHeight() {
+        this._block.refreshHeight();
+    }
+    
 
     saveTextWithMathJax() {
         // save text for collapsing / expanding
