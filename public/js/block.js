@@ -21,12 +21,13 @@ class Block {
         this.con    = json.con;
         this._y     = json.y;
         this.hidden = false;
-        this._type  = json.type; // blocktype:   prmise, proof, conclusion
+        this._type  = json.type; // blocktype:   prmise, proof, conclusion, definition
         this._txtY  = 20;
         this._parents   = json.parents || [];
         this._children  = json.children || [];
         this._btns      = [];
         this._btnRadius = 11;
+        this._roundedCornerRadius = (this._type == blocktype.definition) ? 0 : 18;
         this._width     = 390;
         // this._height    = 150;
         this._txtSize   = 100;  //in %
@@ -51,8 +52,6 @@ class Block {
     }
     get width() { return this._width; }
     get height() { return this._height; }
-    set width(w) { this._width = w; }
-    set height(h) { this._height = h; }
     set txtSize(t) { this._txtSize = t; }
     get x() { return parseInt(this._rect.attr("x")); }
     get y() { return parseInt(this._rect.attr("y")); }
@@ -133,13 +132,14 @@ class Block {
         this._editable = editable;
         this._g = group;
         this._height = 0;
-        let roundedCornerRadius = this._type == blocktype.definition ? 7 : 0;
+        let cornerRadius = this._roundedCornerRadius;
+
 
         // draw rect
         this._rect  = this._s.rect(
                         0, 0,
                         this._width, this._height,
-                        roundedCornerRadius
+                        cornerRadius
                     );
         group.add(this._rect);
                     
@@ -168,9 +168,10 @@ class Block {
         this._rect.attr({
             fill: "#4e5d6c",
             stroke: "#000",
-            strokeWidth: 2,
             height : this._height,
         });
+        if(this._type == blocktype.proof)
+            this._rect.addClass("rect-proof"); // manage style e.g. stroke-width, hover
 
 
         // draw buttons
@@ -187,7 +188,11 @@ class Block {
 
         // trigger positioning of blocks objects
         this.x = 0;
-        this.y = 0;  
+        this.y = 0; 
+    }
+
+    colorize(color) {
+        this._rect.attr({fill: color});
     }
 
     resetText() {
@@ -207,7 +212,7 @@ class Block {
     /*
         creates editable text element <p> and adds it in foreign container to SVG
     */
-    createForeignText(text, editable, style){
+    createForeignText(text, editable){
         var myforeign = document.createElementNS('http://www.w3.org/2000/svg', 'foreignObject')
         myforeign.setAttribute("width", "350");
         myforeign.classList.add("foreign"); //to make div fit text
@@ -217,11 +222,11 @@ class Block {
 
         var textpar = document.createElement("p");
         textpar.innerHTML = text;
-        textpar.setAttribute('style', (style||''));
         textpar.className = "text-white";
         if(editable)
             textpar.setAttribute("contentEditable", "true");
         textpar.addEventListener("input", (ev) => this.onTextChange(ev.target, ev.data)); // ev.target is textpar
+        textpar.addEventListener("tribute-replaced", (ev) => this.onTextChange(ev.target));
         myforeign.textpar = textpar;
 
         // append everything
@@ -289,6 +294,10 @@ class Block {
         // }
 
         this.refreshHeight();
+
+        // run additional method set by onRescale(fn)
+        console.log("rescale");
+        this.onRescaleFn();
     }
 
     refreshHeight() {
@@ -319,8 +328,6 @@ class Block {
         this._rect.attr({height : h});
         this._height = h;
 
-        // run additional method set by onRescale(fn)
-        this.onRescaleFn();
     }
 
     transformSet(set, transformation) {
@@ -384,6 +391,12 @@ class Block {
     asObj() {
         let con = this.findConnections();
         
+        // chrome inserts <div></div> on enter inside editable <p>
+        // and sometimes <span style=...></span>
+        const regex = /(.*?)(<\/?div>|<\/?span( style="font-size: 1rem;")?>)/gm;
+        const subst = `$1`;
+        this._text  = this._text.replace(regex, subst);
+
         if(this._type == blocktype.definition) {
             let alts = this._altText.split(";");
             alts = alts.filter(alt => alt);

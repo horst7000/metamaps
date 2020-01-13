@@ -15,6 +15,7 @@ canvas[resize] {
     text-align: left;
     /* magically made the div fit the text */
 }
+
 .divinforeign {
     display: inline-block;  
 }
@@ -40,5 +41,13 @@ canvas[resize] {
 
 
 i {
-    background-color: darkturquoise;
+    background-color: #637ca6;
+}
+
+rect {
+    stroke-width: 2;
+}
+
+.rect-proof {
+    stroke-width: 0;
 }

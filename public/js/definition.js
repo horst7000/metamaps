@@ -28,6 +28,10 @@ class Definition {
         this._block.text = '';
     }
 
+    colorize(color) {
+        this._block.colorize(color);
+    }
+
     expand() {
         this._block.text = this._textWithMJ;
     }

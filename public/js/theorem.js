@@ -13,6 +13,7 @@ class Theorem {
         this._blockwidth = 390;
         this._status = viewStatus.core;
         this._vizeStatus = viewStatus.core;
+        this._premiseTextWithMJ = "";
         
         this._blocks = [];
         json.blocks.forEach(block => {
@@ -45,13 +46,14 @@ class Theorem {
     }
 
     blockPosRecursive(blockNr=1, done=[], column=0, columnheights=[0,0,0,0]) {  
+        const BLOCK_SPACE_Y = 20;
         console.log("recursive call "+this._title);
         // console.log(blockNr+" called. Column: "+column+ " @ "+columnheights[column]);
         let block   = this.getBlockByNr(blockNr);
         block.x     = (this._blockwidth+5) * column;
         block.y     = columnheights[column];
         if(!block.hidden)
-            columnheights[column] = block.y + block.height + 40;
+            columnheights[column] = block.y + block.height + BLOCK_SPACE_Y;
         let parentColumn      = column;
         let childColumn       = column;
         let lowestParentEdgeY = 0;
@@ -73,7 +75,7 @@ class Theorem {
         // console.log(blockNr+" lowestPE:"+lowestParentEdgeY);
         if (lowestParentEdgeY > block.y && !block.hidden) {
             block.y = lowestParentEdgeY;
-            columnheights[column] = block.y + block.height + 40;
+            columnheights[column] = block.y + block.height + BLOCK_SPACE_Y;
         }
         
         // recursive call downwards (children)
@@ -92,8 +94,9 @@ class Theorem {
     }
     
     click() {
+        // collapse
         if(this._status == viewStatus.expanded) {
-            switch (this._vizeStatus) {
+            switch (this._vizeStatus) { //vizeStatus is status by zoom ignoring click
                 case viewStatus.title:
                     this._status = viewStatus.title;
                     this.collapseToTitle();
@@ -104,7 +107,8 @@ class Theorem {
                     this.collapseToCore();
                     break;
             }
-
+        
+        // expand
         } else {
             this._vizeStatus = this._status;
             this.expand();
@@ -139,12 +143,19 @@ class Theorem {
                     block.show();
             });
             premiseBlock.show();
-            premiseBlock.text = this._premiseTextWithMJ;
+            // remove class before changing text (change font size before calculating height)
             premiseBlock.paragraphElement.classList.remove("blockheader");
+            premiseBlock.text = this._premiseTextWithMJ;
             this._status = viewStatus.core;
         } else {
             this._vizeStatus = viewStatus.core;
         }
+    }
+
+    colorize(color) {
+        this._blocks.forEach(block => {
+            block.colorize(color);
+        });
     }
 
     draw(editable) {
@@ -190,7 +201,7 @@ class Theorem {
             block.show();
         });
         this.blockPosRecursive();
-        this.avoidOverlapping();
+        this.avoidOverlapping([this]);
         this._status = viewStatus.expanded;
     }
     

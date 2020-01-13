@@ -6,6 +6,8 @@ const dbTheorems    = new Datastore("db/theorems.db");
 dbTheorems.loadDatabase();
 const dbDefinitions = new Datastore("db/definitions.db");
 dbDefinitions.loadDatabase();
+const dbTags = new Datastore("db/tags.db");
+dbTags.loadDatabase();
 
 const app = express();
 app.listen(3000, () => console.log("listening on Port 3000"));
@@ -52,10 +54,19 @@ function getDefinitionHeader(id) {
     return new Promise(resolve => {
         dbDefinitions.find({ _id: id }, (err, docs) => {
             if(docs.length > 0 && !err)
-                resolve({title: docs[0].title, tags: docs[0].tags});
+            resolve({title: docs[0].title, tags: docs[0].tags});
         });
     });
 }
+
+function getAllTags() {
+    return new Promise(resolve => {
+        dbTags.find({}, (err, docs) => {
+            resolve(docs);
+        });
+    });
+}
+
 
 // --------------  not used ---------
 // function findID(id) {
@@ -135,6 +146,13 @@ app.route("/api/def")
         });
     });
 
+app.route("/api/tags")
+    .get((req,res) => { // return all tags
+        dbTags.find({}, (err,docs) => {
+            res.json(docs);
+        });
+    });
+
 app.route("/api/the/titles")
     .get((req,res) => { // return all titles with Ids
         dbTheorems.find({}, (err,docs) => {
@@ -200,14 +218,15 @@ app.route("/api/the/:id")
         });
         
     })
-    .put((req,res) => {
+    .put(async (req,res) => {
         const tags  = req.body.pop();
         const title = req.body.pop();
         const data  = req.body;
         dbTheorems.update({ _id: req.params.id }, { $set: { title: title, blocks : data, tags: tags } }, {});
+        await updateTags(req.params.id, tags.split(/; */));
 
         res.json(data);
-        calcPositions(10);
+        updatePositions(10);
     });
 
 
@@ -218,57 +237,115 @@ app.route("/api/def/:id")
         });
         
     })
-    .put((req,res) => {
+    .put(async (req,res) => {
         const title = req.body.title;
         const tags  = req.body.tags;
         delete req.body.title;
         delete req.body.tags;
         const data  = req.body;
         dbDefinitions.update({ _id: req.params.id }, { $set: { title: title, block: data, tags: tags } }, {});
+        await updateTags(req.params.id, tags.split(/; */));
 
         res.json(data);
-        calcPositions(10);
+        updatePositions(10);
     });
+
+function updateTags(usedById, tags) {
+    if(tags.length == 1 && !tags[0])
+        tags = ["null"]; //default tag (invisible)
+
+    // check if tag still used in objects of usedByIds
+    // tags == query(tags with usedById in tag.usedByIds)
+    dbTags.find({ usedByIds: { $elemMatch: usedById } }, (err, docs) => {
+        // docs = previous tags of usedById
+        docs.forEach(doc => {
+            // is tag still used by usedById (is doc.name in tags)?
+            let found = tags.find((tag) => tag == doc.name );
+            if(!found)
+                dbTags.update({ _id: doc._id }, { $pull: { usedByIds: usedById } });
+        });
+    });
+
+    // add new tags / add id to existing tags
+    tags.forEach(tag => {
+        if(tag == "") return;
+        let data = {
+            name: tag,
+            color: "rgb(78, 93, "+(Math.floor(Math.random()*158))+")", 
+            x: 0,
+            y: 0,
+            usedByIds: [usedById],
+            con: [],
+        };
+
+        dbTags.findOne({ name: tag }, (err, doc) => {
+            if(doc == null) { // create new tag
+                dbTags.insert(data);
+            } else { // add def/the id to existing tags
+                dbTags.update({ _id: doc._id }, { $addToSet: { usedByIds: usedById } });
+            }
+        });
+    });
+    
+    dbTags.update({ $or: [{ x : null }, { y : null }] }, { $set: { x: 0, y: 0} }, {multi : true});
+    dbTags.remove({ usedByIds: [] }, {multi: true});
+}
+
+
+
+
+
+
+
+
+
+
+
+// ###################################
+// 
+// 
+// 
+// position stuff
 
 app.route("/api/positions") //TMP (get changes DB)
     .get(async (req,res) => {
-        await calcPositions(1);
+        await updatePositions(1);
         let data = [];
-        dbDefinitions.find({}, (err, defs) => {
-            defs.forEach(def => {
-                data.push({id:def._id, x:def.x, y:def.y});
-            });
-            dbTheorems.find({}, (err, ths) => {
-                ths.forEach(th => {
-                    data.push({id:th._id, x:th.x, y:th.y});
+        dbDefinitions.find({}).projection({x:1, y:1}).exec((err, defs) => {
+            dbTheorems.find({}).projection({x:1, y:1}).exec((err, ths) => {
+                dbTags.find({}).projection({x:1, y:1}).exec((err,tags) => {
+                    data = data.concat(defs, ths, tags);
+                    res.json(data);
                 });
-                res.json(data);
             });
         });
     });
 
 app.route("/api/positions/reset") // temporary
     .get(async (req,res) => {
-        let defs = await getAllDefinitions();
-        let ths  = await getAllTheorems();
-        defs.forEach(def => {
-            dbDefinitions.update({ _id: def._id }, { $set: { x: 0, y: 0} });
-        });
-        ths.forEach(th => {
-            dbTheorems.update({ _id: th._id }, { $set: { x: 0, y: 0} });    
-        });
-        calcPositions(200);
+        dbTags.update({ }, { $set: { x: 0, y: 0} }, {multi : true});  
+        dbDefinitions.update({ }, { $set: { x: 0, y: 0} }, {multi : true});  
+        dbTheorems.update({ }, { $set: { x: 0, y: 0} }, {multi : true});  
 
         res.json();
     });
 
-async function calcPositions(repetitions) {
+app.route("/api/positions/update") // temporary
+    .get(async (req,res) => {
+        dbTags.update({ $or: [{ x : null }, { y : null }] }, { $set: { x: 0, y: 0} }, {multi : true});  
+        dbDefinitions.update({ $or: [{ x : null }, { y : null }] }, { $set: { x: 0, y: 0} }, {multi : true});  
+        dbTheorems.update({ $or: [{ x : null }, { y : null }] }, { $set: { x: 0, y: 0} }, {multi : true});  
+        updatePositions(200);
+
+        res.json();
+    });
+
+async function updatePositions(repetitions) {
+    // preparation
     let defs = await getAllDefinitions();
     let ths  = await getAllTheorems();
-    await updatePositions(defs,ths,repetitions);    
-}
+    let tags = await getAllTags();
 
-async function updatePositions(defs,ths,repetitions=1) {
     // combine sets
     let vertices = [];
     ths.forEach(th => {
@@ -287,9 +364,41 @@ async function updatePositions(defs,ths,repetitions=1) {
         def.forceY = 0;
     });
 
+    // prepare nulltag
+    let nulltag = tags.filter(tag => tag.name == "null")[0];
+    if(nulltag) nulltag.forceX  = 0;
+    if(nulltag) nulltag.forceY  = 0;
+    
+    // add connected tag ids
+    // defs/ths (vertices) operate like edges between tags
+    vertices.forEach(el => {
+        el.tags.split(/; */).forEach(tagA => {
+            if(tagA == "") return;
+            
+            let tag = tags.filter(t => t.name == tagA)[0];
+            if(!tag) return;
+            
+            tag.con     = [];
+            tag.forceX  = 0;
+            tag.forceY  = 0;
+            
+            el.tags.split(/; */).forEach(tagB => {
+                if(tagB != "" && tagA != tagB) {
+                    tag.con.push(tags.filter(el => el.name == tagB)[0]._id);
+                }
+            });
+        });
+    });
+    
+    // acutally calculate and update positions
+    await calcAndUpdatePositions(tags,null,repetitions);    
+    await calcAndUpdatePositions(vertices,tags,repetitions);    
+}
+
+async function calcAndUpdatePositions(vertices,tags,repetitions=1) {
     for (let i = 0; i < repetitions; i++) {
         // calculate forces
-        calcForces(vertices,defs,ths)
+        calcForces(vertices,tags)
         
         // update position without DB
         vertices.forEach(el => {
@@ -312,13 +421,15 @@ async function updatePositions(defs,ths,repetitions=1) {
         new Promise(resolve => {
             if(el.blocks)
                 dbTheorems.update({ _id: el._id }, { $set: { x: el.x+fx, y: el.y+fy} },{resolve});
-            else
+            else if (el.block)
                 dbDefinitions.update({ _id: el._id }, { $set: { x: el.x+fx, y: el.y+fy} },{resolve});
+            else
+                dbTags.update({ _id: el._id }, { $set: { x: el.x+fx, y: el.y+fy, con: el.con} },{resolve});
         });
     });
 }
 
-function calcForces(vertices,defs,ths) {
+function calcForces(vertices,tags) {
     vertices.forEach(elA => {
         vertices.forEach(elB => {
             let force = repulsiveForce(elA,elB);
@@ -326,12 +437,12 @@ function calcForces(vertices,defs,ths) {
             elA.forceY += force.y;
             
         });
-        force = gravity(elA);
+        force = gravity(elA,tags);
         elA.forceX += force.x;
         elA.forceY += force.y;
 
         elA.con.forEach(conID => {
-            elCon = findByID(conID,defs,ths);
+            elCon = findByID(conID,vertices);
 
             let force = attractiveForce(elA,elCon);
 			elA.forceX += force.x;
@@ -345,14 +456,17 @@ function calcForces(vertices,defs,ths) {
 }
 
 function dist(a,b) {
-    // -2*150 with 150 is max.distance from center to edge
-    return Math.sqrt(Math.pow(a.x-b.x,2) + Math.pow(a.y-b.y,2))-300;
+    // ~150 is max.distance from center to edge
+    let sizeA = (a.usedByIds) ? 150+a.usedByIds.length*40 : 150;
+    let sizeB = (b.usedByIds) ? 150+b.usedByIds.length*40 : 150;
+    return Math.sqrt(Math.pow(a.x-b.x,2) + Math.pow(a.y-b.y,2)) - sizeA - sizeB;
 }
 
 const c0 = 500; // repulsive
 function repulsiveForce(a,b) {
     let degA = a.con.length;
     let degB = b.con.length; // TODO?: number of INcoming edges
+ 
     
     if(a._id == b._id)
         return {x:0, y:0};
@@ -389,22 +503,34 @@ function attractiveForce(a,b) {
 }
 
 // c2 = 4*1E-2;
-function gravity(a) {
-    const c2 = 4*1E-2;
+function gravity(a,tags) {
+    const c2 = 2.5*1E-2;
     let degA = a.con.length;
     let d = Math.sqrt(Math.pow(a.x,2) + Math.pow(a.y,2));
+
+    if(tags == null) // a is a tag itself
+        tags = [{x:0, y:0}];
+
+    let x = 0;
+    let y = 0;
+    tags.forEach(tag => {
+        if(!tag._id || tag.usedByIds.indexOf(a._id) != -1) { // tag without id is 0,0
+            x += c2*(degA+0.3) * (tag.x-a.x);
+            y += c2*(degA+0.3) * (tag.y-a.y);
+        }
+    });
+
     return {
-        x: -c2*Math.pow(d,1) * (degA+0.3) * a.x/d,
-        y: -c2*Math.pow(d,1) * (degA+0.3) * a.y/d,
+        // x: -c2*Math.pow(d,1) * (degA+0.3) * a.x/d,
+        // y: -c2*Math.pow(d,1) * (degA+0.3) * a.y/d,
+        x: x,
+        y: y,
     };
 }
 
 
-function findByID(id,defs,ths) {
-    for (let i = 0; i < defs.length; i++)
-        if (defs[i]._id == id)
-            return defs[i];
-    for (let i = 0; i < ths.length; i++)
-        if (ths[i]._id == id)
-            return ths[i];   
+function findByID(id,vertices) {
+    for (let i = 0; i < vertices.length; i++)
+        if (vertices[i]._id == id)
+            return vertices[i];
 }

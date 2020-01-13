@@ -2,6 +2,7 @@
     const s           = Snap("#drawsvg");
     let theorems      = [];
     let definitions   = [];
+    let tags          = [];
     let lines         = [];
     let vertices      = []; // for positioning
     let conObjs       = [];
@@ -44,14 +45,22 @@
         pr.then( (json) => {
             theorems.forEach(th => {
                 json.forEach(el => {
-                    if(th._id == el.id)
+                    if(th._id == el._id)
                         th.moveBy(el.x-th.x, el.y-th.y);
                 });
             });
             definitions.forEach(def => {
                 json.forEach(el => {
-                    if(def._id == el.id)
+                    if(def._id == el._id)
                         def.moveBy(el.x-def.x, el.y-def.y);
+                });
+            });
+            tags.forEach(tag => {
+                json.forEach(el => {
+                    if(tag._id == el._id) {
+                        tag.x = el.x;
+                        tag.y = el.y;
+                    }
                 });
             });
             drawConnections();
@@ -60,7 +69,7 @@
 
     function avoidOverlapping(elements) { // TODO: implement WebCola vpsc.ts 
         if(!elements)
-            elements = definitions.concat(theorems);
+            elements = definitions.concat(theorems); // definitions + theorems  
 
         elements.forEach(el => {
             definitions.forEach(def => {
@@ -77,35 +86,47 @@
         if(a._id == b._id)
             return;
         
+        const yFactor = 0.2;
+        
+        // push a and b away dependend on whos on top / more right
         if(a.x < b.x && a.y < b.y) { // a to the top left of b
             let dx = b.x - (a.x + a.width); //left
             let dy = b.y - (a.y + a.height); //top
             if(dx < 0 && dy < 0) {
-                a.moveBy(dx/4,dy/4);
-                b.moveBy(-dx/3,-dy/3);
+                a.moveBy(dx/4,dy/4 *yFactor);
+                b.moveBy(-dx/3,-dy/3 *yFactor);
             }
         } else if(a.x > b.x && a.y < b.y) { // a to the top right of b
             let dx = a.x - (b.x + b.width); //right
             let dy = b.y - (a.y + a.height); //top
             if(dx < 0 && dy < 0) {
-                a.moveBy(-dx/4,dy/4);
-                b.moveBy(dx/3,-dy/3);
+                a.moveBy(-dx/4,dy/4 *yFactor);
+                b.moveBy(dx/3,-dy/3 *yFactor);
             }
         } else if(a.x < b.x && a.y > b.y) { // a to the bottom left of b
             let dx = b.x - (a.x + a.width); //left
             let dy = a.y - (b.y + b.height); //bottom
             if(dx < 0 && dy < 0) {
-                a.moveBy(dx/4,-dy/4);
-                b.moveBy(-dx/3,dy/3);
+                a.moveBy(dx/4,-dy/4 *yFactor);
+                b.moveBy(-dx/3,dy/3 *yFactor);
             }
         } else { // a to the bottom right of b
             let dx = a.x - (b.x + b.width); //right
             let dy = a.y - (b.y + b.height); //bottom
             if(dx < 0 && dy < 0) {
-                a.moveBy(-dx/4,-dy/4);
-                b.moveBy(dx/3,dy/3);
+                a.moveBy(-dx/4,-dy/4 *yFactor);
+                b.moveBy(dx/3,dy/3 *yFactor);
             }
         }
+    }
+
+    function colorizeBlocksByTag() {
+        tags.forEach(tag => {
+            let color = tag.color;
+            tag.usedByIds.forEach(id => {
+                findByID(id).colorize(color);
+            });
+        });
     }
 
     function drawBlocks(jsontheorems, jsondefs) {
@@ -125,6 +146,16 @@
             def.moveBy(json.x,json.y);
 
             definitions.push(def);      
+        });
+    }
+
+    function drawTags(jsontags) {
+        jsontags.forEach(json => {
+            let tag = new Tag(s, json);
+            tag.draw();
+            tag.addToGroup(g);
+
+            tags.push(tag);      
         });
     }
 
@@ -161,17 +192,18 @@
         let dist 	= Math.sqrt(Math.pow(src.x-trg.x,2) + Math.pow(src.y-trg.y,2));
 		let dx 		= trg.x-src.x;
 		let dy		= trg.y-src.y;
-		let normdx 	= (dx)/dist;
+        let normdx 	= (dx)/dist;
 		let normdy 	= (dy)/dist;
 		let orth  = {
 			x: -normdy,
 			y: normdx
-		};
+        };
+        let blockwidth = 390;
         line = {};
         
         line 	= s.path(
-            "M"+src.x+" "+src.y+
-            " L"+trg.x+" "+trg.y
+            "M"+(src.x+blockwidth/2)+" "+src.y+
+            " L"+(trg.x+blockwidth/2)+" "+trg.y
         );
 
         line.attr({
@@ -254,11 +286,6 @@
         g.transform(m);
 
         // different zoom levels
-        // if(zoom == 0 && zIn) {
-        //     theorems.forEach(th => {
-        //         th.expand(); // TODO: expand only on click
-        //     });
-        // }
         if(zoom == -2 && zIn) {
             theorems.forEach(th => {
                 th.collapseToCore();
@@ -266,7 +293,7 @@
             definitions.forEach(def => {
                 def.expand();
             });
-            avoidOverlapping();
+            // avoidOverlapping();
         }
         if(zoom == -3 && zOut) {
             theorems.forEach(th => {
@@ -291,7 +318,10 @@
     (async function init() {
         const jsontheorems = await loadBlocksFromAPI("the");
         const jsondefs     = await loadBlocksFromAPI("def");
+        const jsontags     = await loadBlocksFromAPI("tags");
+        drawTags(jsontags);
         drawBlocks(jsontheorems, jsondefs);
+        colorizeBlocksByTag();
         await MathJax.typesetPromise();
 
         // refresh blocks height after MathJax typeset
@@ -301,7 +331,6 @@
         definitions.forEach(def => {
             def.refreshHeight();
         });
-
 
         makeBlocksDraggable();
 

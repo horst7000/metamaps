@@ -39,10 +39,10 @@ function fetchPostDef() {
           name: "name",
           alt: ["alternative"],
           type: 4,  // = blocktype.definition
+          con: [],
       },
       x:0,
       y:0,
-      con: [],
     })
   }
   fetch('/api/def', options) // POST
