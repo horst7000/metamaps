@@ -27,7 +27,7 @@ class Block {
         this._children  = json.children || [];
         this._btns      = [];
         this._btnRadius = 11;
-        this._roundedCornerRadius = (this._type == blocktype.definition) ? 0 : 18;
+        this._roundedCornerRadius = (this._type == blocktype.definition) ? 0 : 30;
         this._width     = 390;
         // this._height    = 150;
         this._txtSize   = 100;  //in %
@@ -296,7 +296,6 @@ class Block {
         this.refreshHeight();
 
         // run additional method set by onRescale(fn)
-        console.log("rescale");
         this.onRescaleFn();
     }
 

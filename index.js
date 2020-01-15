@@ -1,5 +1,6 @@
 const express = require("express");
 const Datastore = require('nedb');
+const posi = require('./positioning');
 
 // init database and express
 const dbTheorems    = new Datastore("db/theorems.db");
@@ -8,6 +9,8 @@ const dbDefinitions = new Datastore("db/definitions.db");
 dbDefinitions.loadDatabase();
 const dbTags = new Datastore("db/tags.db");
 dbTags.loadDatabase();
+
+const NULLTAG = "null";
 
 const app = express();
 app.listen(3000, () => console.log("listening on Port 3000"));
@@ -252,7 +255,7 @@ app.route("/api/def/:id")
 
 function updateTags(usedById, tags) {
     if(tags.length == 1 && !tags[0])
-        tags = ["null"]; //default tag (invisible)
+        tags = [NULLTAG]; //default tag (invisible)
 
     // check if tag still used in objects of usedByIds
     // tags == query(tags with usedById in tag.usedByIds)
@@ -340,77 +343,24 @@ app.route("/api/positions/update") // temporary
         res.json();
     });
 
+
+
 async function updatePositions(repetitions) {
     // preparation
     let defs = await getAllDefinitions();
     let ths  = await getAllTheorems();
     let tags = await getAllTags();
 
-    // combine sets
-    let vertices = [];
-    ths.forEach(th => {
-        th.con = [];
-        th.blocks.forEach(bl => {
-            th.con = th.con.concat(bl.con);
-        });
-        vertices.push(th);
-        th.forceX = 0;
-        th.forceY = 0;
-    });
-    defs.forEach(def => {
-        def.con = def.block.con;
-        vertices.push(def);
-        def.forceX = 0;
-        def.forceY = 0;
-    });
+    let prepared = posi.prepareForUpdate(defs, ths, tags);
 
-    // prepare nulltag
-    let nulltag = tags.filter(tag => tag.name == "null")[0];
-    if(nulltag) nulltag.forceX  = 0;
-    if(nulltag) nulltag.forceY  = 0;
-    
-    // add connected tag ids
-    // defs/ths (vertices) operate like edges between tags
-    vertices.forEach(el => {
-        el.tags.split(/; */).forEach(tagA => {
-            if(tagA == "") return;
-            
-            let tag = tags.filter(t => t.name == tagA)[0];
-            if(!tag) return;
-            
-            tag.con     = [];
-            tag.forceX  = 0;
-            tag.forceY  = 0;
-            
-            el.tags.split(/; */).forEach(tagB => {
-                if(tagB != "" && tagA != tagB) {
-                    tag.con.push(tags.filter(el => el.name == tagB)[0]._id);
-                }
-            });
-        });
-    });
-    
     // acutally calculate and update positions
-    await calcAndUpdatePositions(tags,null,repetitions);    
-    await calcAndUpdatePositions(vertices,tags,repetitions);    
+    await posi.calculatePositions(prepared.tags, null,repetitions,
+        vertices => updatePositionInDB(vertices));
+    posi.calculatePositions(prepared.vertices,prepared.tags,repetitions,
+        vertices => updatePositionInDB(vertices));
 }
 
-async function calcAndUpdatePositions(vertices,tags,repetitions=1) {
-    for (let i = 0; i < repetitions; i++) {
-        // calculate forces
-        calcForces(vertices,tags)
-        
-        // update position without DB
-        vertices.forEach(el => {
-            let fx = Math.floor(el.forceX);
-            let fy = Math.floor(el.forceY);
-            el.x +=fx;
-            el.y +=fy;
-            el.forceX = 0;
-            el.forceY = 0;
-        });
-    }
-
+function updatePositionInDB(vertices) {
     // update position in DB
     vertices.forEach(el => {
         let fx = Math.floor(el.forceX);
@@ -420,117 +370,12 @@ async function calcAndUpdatePositions(vertices,tags,repetitions=1) {
         
         new Promise(resolve => {
             if(el.blocks)
-                dbTheorems.update({ _id: el._id }, { $set: { x: el.x+fx, y: el.y+fy} },{resolve});
+                dbTheorems.update({ _id: el._id }, { $set: { x: el.x, y: el.y} },{resolve});
             else if (el.block)
-                dbDefinitions.update({ _id: el._id }, { $set: { x: el.x+fx, y: el.y+fy} },{resolve});
+                dbDefinitions.update({ _id: el._id }, { $set: { x: el.x, y: el.y} },{resolve});
             else
-                dbTags.update({ _id: el._id }, { $set: { x: el.x+fx, y: el.y+fy, con: el.con} },{resolve});
+                dbTags.update({ _id: el._id }, { $set: { x: el.x, y: el.y, con: el.con} },{resolve});
         });
     });
 }
 
-function calcForces(vertices,tags) {
-    vertices.forEach(elA => {
-        vertices.forEach(elB => {
-            let force = repulsiveForce(elA,elB);
-			elA.forceX += force.x;
-            elA.forceY += force.y;
-            
-        });
-        force = gravity(elA,tags);
-        elA.forceX += force.x;
-        elA.forceY += force.y;
-
-        elA.con.forEach(conID => {
-            elCon = findByID(conID,vertices);
-
-            let force = attractiveForce(elA,elCon);
-			elA.forceX += force.x;
-            elA.forceY += force.y;
-
-            force = attractiveForce(elCon,elA);
-			elCon.forceX += force.x;
-            elCon.forceY += force.y;
-        });
-    });
-}
-
-function dist(a,b) {
-    // ~150 is max.distance from center to edge
-    let sizeA = (a.usedByIds) ? 150+a.usedByIds.length*40 : 150;
-    let sizeB = (b.usedByIds) ? 150+b.usedByIds.length*40 : 150;
-    return Math.sqrt(Math.pow(a.x-b.x,2) + Math.pow(a.y-b.y,2)) - sizeA - sizeB;
-}
-
-const c0 = 500; // repulsive
-function repulsiveForce(a,b) {
-    let degA = a.con.length;
-    let degB = b.con.length; // TODO?: number of INcoming edges
- 
-    
-    if(a._id == b._id)
-        return {x:0, y:0};
-
-    let d = dist(a,b);
-    if(d<=50) {
-        a.x += -25+Math.floor(Math.random()*50);
-        a.y += -25+Math.floor(Math.random()*50);
-        d = 50;
-    }
-    let x = c0*Math.sqrt((degA+1)*(degB+1))/Math.pow(d,1.9) * (a.x-b.x);
-    let y = c0*Math.sqrt((degA+1)*(degB+1))/Math.pow(d,2) * (a.y-b.y);
-    if(x > 1000)
-        console.log(`${c0}*${(degA+1)}*${(degB+1)}/${Math.pow(d,2)} * ${(a.x-b.x)} = ${x}`);
-    return {
-        x:x,
-        y:y
-    };
-}
-
-// c1 = 8 * 1E-2;
-function attractiveForce(a,b) {
-    const c1 = 8*1E-2; // attractive
-    let d = dist(a,b);
-    let defaultDist = 180;
-
-    if(a._id == b._id || d <= 0)
-        return {x:0, y:0};
-    
-    return {
-        x:-c1*(d-defaultDist) * (a.x-b.x)/d,
-        y:-c1*(d-defaultDist/3) * (a.y-b.y)/d
-    };
-}
-
-// c2 = 4*1E-2;
-function gravity(a,tags) {
-    const c2 = 2.5*1E-2;
-    let degA = a.con.length;
-    let d = Math.sqrt(Math.pow(a.x,2) + Math.pow(a.y,2));
-
-    if(tags == null) // a is a tag itself
-        tags = [{x:0, y:0}];
-
-    let x = 0;
-    let y = 0;
-    tags.forEach(tag => {
-        if(!tag._id || tag.usedByIds.indexOf(a._id) != -1) { // tag without id is 0,0
-            x += c2*(degA+0.3) * (tag.x-a.x);
-            y += c2*(degA+0.3) * (tag.y-a.y);
-        }
-    });
-
-    return {
-        // x: -c2*Math.pow(d,1) * (degA+0.3) * a.x/d,
-        // y: -c2*Math.pow(d,1) * (degA+0.3) * a.y/d,
-        x: x,
-        y: y,
-    };
-}
-
-
-function findByID(id,vertices) {
-    for (let i = 0; i < vertices.length; i++)
-        if (vertices[i]._id == id)
-            return vertices[i];
-}

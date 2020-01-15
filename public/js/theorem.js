@@ -47,7 +47,7 @@ class Theorem {
 
     blockPosRecursive(blockNr=1, done=[], column=0, columnheights=[0,0,0,0]) {  
         const BLOCK_SPACE_Y = 20;
-        console.log("recursive call "+this._title);
+        // console.log("recursive call "+this._title);
         // console.log(blockNr+" called. Column: "+column+ " @ "+columnheights[column]);
         let block   = this.getBlockByNr(blockNr);
         block.x     = (this._blockwidth+5) * column;
