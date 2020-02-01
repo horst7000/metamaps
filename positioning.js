@@ -44,6 +44,7 @@ function prepareForUpdate(defs, ths, tags) {
                 if(tagB != "" && tagA != tagB) {
                     let conTag = tags.filter(el => el.name == tagB)[0];
                     if(!conTag) return;
+                    if(tag.con.indexOf(conTag._id) != -1) return; // already connected
                     tag.con.push(conTag._id);
                 }
             });
@@ -169,7 +170,7 @@ function repulsiveForce(a,b) {  // repulsive force applying on a.   a' <-f-- a  
 
 // c1 = 8 * 1E-2;    1.3*1E-1
 function attractiveForce(a,b) { // attractive force applying on a.   a --f-> a' b
-    const c1 = 1.3*1E-1; // attractive
+    const c1 = 1.0*1E-1; // attractive
     let d    = effectiveDist(a,b);
     let norm = normDist(a,b);
 
@@ -184,7 +185,7 @@ function attractiveForce(a,b) { // attractive force applying on a.   a --f-> a' 
 
 // c2 = 4*1E-2;     1.7*1E-2
 function gravity(a,tags) {
-    const c2 = 1.7*1E-2;
+    const c2 = 1.6*1E-2;
     let c2_tag = 1;
     let degA = a.con.length;
     let d = Math.sqrt(Math.pow(a.x,2) + Math.pow(a.y,2));

@@ -15,6 +15,8 @@ const NULLTAG = "null";
 const app = express();
 app.listen(3000, () => console.log("listening on Port 3000"));
 app.use(express.static("public"));  
+// panzoom.min.js -> delete >>>>>preventDefault();<<<<<}}function handleTouchEnd(e){if(e.touches.length>0)
+app.use("/panzoom", express.static(__dirname + "/node_modules/panzoom/dist"));
 app.use(express.json()) // for parsing application/json
 
 // configure pug
@@ -40,7 +42,7 @@ function getTheoremHeader(id) {
         dbTheorems.find({ _id: id }, (err, docs) => {
             if(docs.length > 0 && !err) 
                 resolve({title: docs[0].title, tags: docs[0].tags});
-            
+            resolve();
         });
     });
 }
@@ -57,7 +59,8 @@ function getDefinitionHeader(id) {
     return new Promise(resolve => {
         dbDefinitions.find({ _id: id }, (err, docs) => {
             if(docs.length > 0 && !err)
-            resolve({title: docs[0].title, tags: docs[0].tags});
+                resolve({title: docs[0].title, tags: docs[0].tags});
+            resolve();
         });
     });
 }
@@ -229,7 +232,7 @@ app.route("/api/the/:id")
         await updateTags(req.params.id, tags.split(/; */));
 
         res.json(data);
-        updatePositions(10);
+        updatePositions(50);
     });
 
 
@@ -250,11 +253,11 @@ app.route("/api/def/:id")
         await updateTags(req.params.id, tags.split(/; */));
 
         res.json(data);
-        updatePositions(10);
+        updatePositions(50);
     });
 
 function updateTags(usedById, tags) {
-    if(tags.length == 1 && !tags[0])
+    if(tags.length == 1 && !tags[0]) //tags[0] == "" or ''
         tags = [NULLTAG]; //default tag (invisible)
 
     // check if tag still used in objects of usedByIds
@@ -268,7 +271,7 @@ function updateTags(usedById, tags) {
                 dbTags.update({ _id: doc._id }, { $pull: { usedByIds: usedById } });
         });
     });
-
+    
     // add new tags / add id to existing tags
     tags.forEach(tag => {
         if(tag == "") return;
@@ -283,21 +286,17 @@ function updateTags(usedById, tags) {
 
         dbTags.findOne({ name: tag }, (err, doc) => {
             if(doc == null) { // create new tag
-                dbTags.insert(data);
+                dbTags.insert(data);     //TODO: handle if same tag twice in tags
             } else { // add def/the id to existing tags
                 dbTags.update({ _id: doc._id }, { $addToSet: { usedByIds: usedById } });
             }
         });
     });
-    
-    dbTags.update({ $or: [{ x : null }, { y : null }] }, { $set: { x: 0, y: 0} }, {multi : true});
+
     dbTags.remove({ usedByIds: [] }, {multi: true});
+    return new Promise(resolve => setTimeout(resolve, 3000)); //TODO: promise waits till previous db updates are done
+    // return new Promise(resolve => dbTags.remove({ usedByIds: [] }, {multi: true}, resolve));
 }
-
-
-
-
-
 
 
 
@@ -325,7 +324,7 @@ app.route("/api/positions") //TMP (get changes DB)
     });
 
 app.route("/api/positions/reset") // temporary
-    .get(async (req,res) => {
+    .get((req,res) => {
         dbTags.update({ }, { $set: { x: 0, y: 0} }, {multi : true});  
         dbDefinitions.update({ }, { $set: { x: 0, y: 0} }, {multi : true});  
         dbTheorems.update({ }, { $set: { x: 0, y: 0} }, {multi : true});  
@@ -334,7 +333,7 @@ app.route("/api/positions/reset") // temporary
     });
 
 app.route("/api/positions/update") // temporary
-    .get(async (req,res) => {
+    .get((req,res) => {
         dbTags.update({ $or: [{ x : null }, { y : null }] }, { $set: { x: 0, y: 0} }, {multi : true});  
         dbDefinitions.update({ $or: [{ x : null }, { y : null }] }, { $set: { x: 0, y: 0} }, {multi : true});  
         dbTheorems.update({ $or: [{ x : null }, { y : null }] }, { $set: { x: 0, y: 0} }, {multi : true});  
@@ -362,20 +361,13 @@ async function updatePositions(repetitions) {
 
 function updatePositionInDB(vertices) {
     // update position in DB
-    vertices.forEach(el => {
-        let fx = Math.floor(el.forceX);
-        let fy = Math.floor(el.forceY);
-        el.forceX = 0;
-        el.forceY = 0;
-        
-        new Promise(resolve => {
-            if(el.blocks)
-                dbTheorems.update({ _id: el._id }, { $set: { x: el.x, y: el.y} },{resolve});
-            else if (el.block)
-                dbDefinitions.update({ _id: el._id }, { $set: { x: el.x, y: el.y} },{resolve});
-            else
-                dbTags.update({ _id: el._id }, { $set: { x: el.x, y: el.y, con: el.con} },{resolve});
-        });
+    vertices.forEach(el => {        
+        if(el.blocks)
+            dbTheorems.update({ _id: el._id }, { $set: { x: el.x, y: el.y} });
+        else if (el.block)
+            dbDefinitions.update({ _id: el._id }, { $set: { x: el.x, y: el.y} });
+        else
+            dbTags.update({ _id: el._id }, { $set: { x: el.x, y: el.y, con: el.con} });
     });
 }
 

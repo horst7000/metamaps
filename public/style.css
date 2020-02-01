@@ -48,6 +48,14 @@ rect {
     stroke-width: 2;
 }
 
-.rect-proof {
+.holdCore rect {
+    stroke-width: 4;
+}
+
+.holdCore .rect-proof {
+    stroke-width: 0;
+}
+
+.indicator circle {
     stroke-width: 0;
 }

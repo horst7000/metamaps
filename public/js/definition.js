@@ -6,6 +6,8 @@ class Definition {
         this._x = 0;
         this._y = 0;
         this._s     = snap;
+        this._status = viewStatus.title;
+        this._holdCore  = false;
         this._g     = this._s.g();
     }
 
@@ -24,16 +26,29 @@ class Definition {
         return this._block.asObj();
     }
 
+    click() {
+        if(this._status == viewStatus.core && !this._holdCore) {
+            this._g.addClass("holdCore");
+            this._holdCore = true;
+        } else if(this._status == viewStatus.core && this._holdCore) {
+            this.collapseToTitle();
+            this._g.removeClass("holdCore");
+            this._holdCore = false;
+        }
+    }
+
     collapseToTitle() {
         this._block.text = '';
+        this._status = viewStatus.title;
+    }
+
+    collapseToCore() {
+        this._block.text = this._textWithMJ;
+        this._status = viewStatus.core;
     }
 
     colorize(color) {
         this._block.colorize(color);
-    }
-
-    expand() {
-        this._block.text = this._textWithMJ;
     }
 
     draw(editable) {        
@@ -47,11 +62,12 @@ class Definition {
     postDraw(editable) {
         // add hover listener
         if(!editable) {
-            this._block.foreigns.forEach(fe => {
-                fe.addEventListener("mouseover",  () => this.mouseover());
-                fe.addEventListener("mouseout",  () => this.mouseout());
-            });    
-            this._block._rect.hover(() => this.mouseover(),() => this.mouseout());
+            this._g.hover(() => this.mouseover(),(e) => this.mouseout(e));
+        }
+
+        // add click listener
+        if(!editable) {
+            this._g.click((e) => this.click(e));
         }
     }
 
@@ -62,11 +78,19 @@ class Definition {
     }
     
     mouseover() {
-        this._block._rect.attr({style: "opacity: 0.92"});
+        this._block._rect.attr({style: "opacity: 0.9"});
+        if(this._status == viewStatus.title)
+            this.collapseToCore();
     }
-
-    mouseout() {
-        this._block._rect.attr({style: "opacity: 1"});
+    
+    mouseout(e) {
+        let b = this._g.node.getBoundingClientRect();    
+        if(e.clientX < b.x || e.clientX > b.x+b.width ||
+            e.clientY < b.y || e.clientY > b.y+b.height ) {
+            if(!this._holdCore && this._status == viewStatus.core)
+                this.collapseToTitle();
+            this._block._rect.attr({style: "opacity: 1"});
+        }        
     }
 
     refreshHeight() {

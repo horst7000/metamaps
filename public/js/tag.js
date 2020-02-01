@@ -5,7 +5,7 @@ class Tag {
         this._x     = json.x;
         this._y     = json.y;
         this._name  = json.name;
-        this._color = json.color;
+        this._color = (this._name == "null") ? "#000" : json.color;
         this._usedByIds = json.usedByIds;
         this._con   = json.con;
         this._fontSize  = 60 + 7*this._usedByIds.length;
@@ -13,6 +13,7 @@ class Tag {
     }
 
     set x(x) {
+        if(x == null) console.log(this._name + " x is null");
         this._x     = x;
         // this._cx    = x+this._fontSize/2 * this._name.length/2;
         this.text.attr({x:x});

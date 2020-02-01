@@ -11,8 +11,12 @@ class Theorem {
         this._y = 0;
         this._g = this._s.g();
         this._blockwidth = 390;
-        this._status = viewStatus.core;
-        this._vizeStatus = viewStatus.core;
+        this._status = viewStatus.title;
+        this._vizeStatus = viewStatus.title;
+        this._holdCore  = false;
+        this._proofCtr  = 0;
+        this._proofIndicator    = this._s.g();
+        this._color = "";
         this._premiseTextWithMJ = "";
         
         this._blocks = [];
@@ -20,6 +24,8 @@ class Theorem {
             this._blocks.push(new Block(snap, block));
             // find max nr
             if(block.nr > this._blockcntr) this._blockcntr = block.nr;
+            // count proof blocks
+            if(block.type == blocktype.proof) this._proofCtr++;
         });
         
         // add listeners
@@ -43,6 +49,12 @@ class Theorem {
     
     addToGroup(group) {
         group.add(this._g);
+    }
+
+    setAttr(attrObj) {
+        this._blocks.forEach(bl => {
+            bl._rect.attr(attrObj);
+        });
     }
 
     blockPosRecursive(blockNr=1, done=[], column=0, columnheights=[0,0,0,0]) {  
@@ -93,68 +105,63 @@ class Theorem {
             return block.y+block.height;
     }
     
-    click() {
-        // collapse
+    click(e) {
         if(this._status == viewStatus.expanded) {
-            switch (this._vizeStatus) { //vizeStatus is status by zoom ignoring click
-                case viewStatus.title:
-                    this._status = viewStatus.title;
-                    this.collapseToTitle();
-                    break;
-            
-                default:
-                    this._status = viewStatus.core;
-                    this.collapseToCore();
-                    break;
+            this.collapseToCore();
+        } else if(this._status == viewStatus.core && !this._holdCore) {
+            this._g.addClass("holdCore");
+            this._holdCore = true;
+        } else if(this._status == viewStatus.core && this._holdCore) {
+            let b = this._proofIndicator.node.getBoundingClientRect();
+            if(e.clientX < b.x || e.clientX > b.x+b.width ||
+                e.clientY < b.y || e.clientY > b.y+b.height ) {
+                this.collapseToTitle();
+                this._g.removeClass("holdCore");
+                this._holdCore = false;
+            } else {
+                this.expand();
             }
-        
-        // expand
-        } else {
-            this._vizeStatus = this._status;
-            this.expand();
         }
     }
 
     collapseToTitle() {
-        if(this._status != viewStatus.expanded) {
-            let premiseBlock = {};
-            this._blocks.forEach(block => {
-                block.hide();
-                if(block.type == blocktype.premise)
-                    premiseBlock = block;
-            });
-            premiseBlock.show();
-            premiseBlock.text = this._title;
-            premiseBlock.paragraphElement.classList.add("blockheader");
-            this._status = viewStatus.title;
-        } else {
-            this._vizeStatus = viewStatus.title;
-        }
+        let premiseBlock = {};
+        this._blocks.forEach(block => {
+            block.hide();
+            if(block.type == blocktype.premise)
+                premiseBlock = block;
+        });
+        premiseBlock.show();
+        premiseBlock.text = this._title;
+        premiseBlock.paragraphElement.classList.add("blockheader");
+        this._proofIndicator.addClass("d-none");
+        this._status = viewStatus.title;
     }
     
     collapseToCore() {
-        if(this._status != viewStatus.expanded) {
-            let premiseBlock = {};
-            this._blocks.forEach(block => {
-                block.hide();
-                if(block.type == blocktype.premise)
-                    premiseBlock = block;
-                if(block.type == blocktype.conclusion)
-                    block.show();
-            });
-            premiseBlock.show();
-            // remove class before changing text (change font size before calculating height)
-            premiseBlock.paragraphElement.classList.remove("blockheader");
-            premiseBlock.text = this._premiseTextWithMJ;
-            this._status = viewStatus.core;
-        } else {
-            this._vizeStatus = viewStatus.core;
-        }
+        let premiseBlock = {};
+        this._blocks.forEach(block => {
+            block.hide();
+            if(block.type == blocktype.premise)
+            premiseBlock = block;
+            if(block.type == blocktype.conclusion)
+            block.show();
+        });
+        premiseBlock.show();
+        // remove class before changing text (change font size before calculating height)
+        premiseBlock.paragraphElement.classList.remove("blockheader");
+        this._proofIndicator.removeClass("d-none");
+        premiseBlock.text = this._premiseTextWithMJ;
+        this._status = viewStatus.core;
     }
 
     colorize(color) {
+        this._color = color;
         this._blocks.forEach(block => {
             block.colorize(color);
+        });
+        this._proofIndicator.children().forEach((circ) => {
+            circ.attr({fill : color});
         });
     }
 
@@ -164,29 +171,31 @@ class Theorem {
             if(editable && this._tribute)
                 this._tribute.attach(block.paragraphElement);
         });
+        
+        for (let i = 0; i < this._proofCtr; i++) {
+            let circ = this._s.circle(
+                this._x,
+                this._y+10+30*i,
+                13
+            );
+            this._proofIndicator.add(circ);
+        }
+        this._proofIndicator.addClass("indicator");
+        this._proofIndicator.addClass("d-none");
+        this._g.add(this._proofIndicator);
+
         this.postDraw(editable);
     }
 
     postDraw(editable) {
         // add hover listener
         if(!editable) {
-            this._blocks.forEach(bl => {
-                bl.foreigns.forEach(fe => {
-                    fe.addEventListener("mouseover",  () => this.mouseover());
-                    fe.addEventListener("mouseout",  () => this.mouseout());
-                });    
-                bl._rect.hover(() => this.mouseover(),() => this.mouseout());
-            });
+            this._g.hover(() => this.mouseover(),(e) => this.mouseout(e));
         }
 
         // add click listener
         if(!editable) {
-            this._blocks.forEach(bl => {
-                bl.foreigns.forEach(fe => {
-                    fe.addEventListener("click",  () => this.click());
-                });    
-                bl._rect.click(() => this.click());
-            });
+            this._g.click((e) => this.click(e));
         }
 
         this.blockPosRecursive(1);
@@ -202,6 +211,7 @@ class Theorem {
         });
         this.blockPosRecursive();
         this.avoidOverlapping([this]);
+        this._proofIndicator.addClass("d-none");
         this._status = viewStatus.expanded;
     }
     
@@ -219,15 +229,19 @@ class Theorem {
     }
 
     mouseover() {
-        this._blocks.forEach(bl => {
-            bl._rect.attr({style: "opacity: 0.5"});
-        });
+        this.setAttr({style: "opacity: 0.9"});
+        if(this._status == viewStatus.title)
+            this.collapseToCore();
     }
-
-    mouseout() {
-        this._blocks.forEach(bl => {
-            bl._rect.attr({style: "opacity: 1"});
-        });
+    
+    mouseout(e) {
+        let b = this._g.node.getBoundingClientRect();    
+        if(e.clientX < b.x || e.clientX > b.x+b.width ||
+            e.clientY < b.y || e.clientY > b.y+b.height ) {
+            if(!this._holdCore && this._status == viewStatus.core)
+                this.collapseToTitle();
+            this.setAttr({style: "opacity: 1"});
+        }        
     }
 
     insertBlock(triggerBlock, relativePos) {

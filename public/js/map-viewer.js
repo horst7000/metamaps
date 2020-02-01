@@ -94,28 +94,28 @@
             let dy = b.y - (a.y + a.height); //top
             if(dx < 0 && dy < 0) {
                 a.moveBy(dx/4,dy/4 *yFactor);
-                b.moveBy(-dx/3,-dy/3 *yFactor);
+                b.moveBy(-dx*2/3,-dy*2/3 *yFactor);
             }
         } else if(a.x > b.x && a.y < b.y) { // a to the top right of b
             let dx = a.x - (b.x + b.width); //right
             let dy = b.y - (a.y + a.height); //top
             if(dx < 0 && dy < 0) {
                 a.moveBy(-dx/4,dy/4 *yFactor);
-                b.moveBy(dx/3,-dy/3 *yFactor);
+                b.moveBy(dx*2/3,-dy*2/3 *yFactor);
             }
         } else if(a.x < b.x && a.y > b.y) { // a to the bottom left of b
             let dx = b.x - (a.x + a.width); //left
             let dy = a.y - (b.y + b.height); //bottom
             if(dx < 0 && dy < 0) {
                 a.moveBy(dx/4,-dy/4 *yFactor);
-                b.moveBy(-dx/3,dy/3 *yFactor);
+                b.moveBy(-dx*2/3,dy*2/3 *yFactor);
             }
         } else { // a to the bottom right of b
             let dx = a.x - (b.x + b.width); //right
             let dy = a.y - (b.y + b.height); //bottom
             if(dx < 0 && dy < 0) {
                 a.moveBy(-dx/4,-dy/4 *yFactor);
-                b.moveBy(dx/3,dy/3 *yFactor);
+                b.moveBy(dx*2/3,dy*2/3 *yFactor);
             }
         }
     }
@@ -241,7 +241,7 @@
     }
     
     function zoomlock() {
-        let time = 90;
+        let time = 30;
         let timer = setInterval(() => {
             if(time > 0)
                 document.getElementById("time").textContent = (time-=10);
@@ -272,37 +272,37 @@
 
         if(e.deltaY > 0) { //zoom out
             zoom--;
-            matrixScaleAtXY(e.x, e.y, 0.8);
+            matrixScaleAtXY(e.x, e.y, 0.84);
             zOut = true;
         }
             
         if(e.deltaY < 0) { //zoom in
             if(zoom == 0) return;
             zoom++;
-            matrixScaleAtXY(e.x, e.y, 1.25);
+            matrixScaleAtXY(e.x, e.y, 1.19);
             zIn = true;
         }
         // apply matrix transformation
         g.transform(m);
 
         // different zoom levels
-        if(zoom == -2 && zIn) {
-            theorems.forEach(th => {
-                th.collapseToCore();
-            });
-            definitions.forEach(def => {
-                def.expand();
-            });
-            // avoidOverlapping();
-        }
-        if(zoom == -3 && zOut) {
-            theorems.forEach(th => {
-                th.collapseToTitle();
-            });
-            definitions.forEach(def => {
-                def.collapseToTitle();
-            });
-        }
+        // if(zoom == -2 && zIn) {
+        //     theorems.forEach(th => {
+        //         th.collapseToCore();
+        //     });
+        //     definitions.forEach(def => {
+        //         def.expand();
+        //     });
+        //     // avoidOverlapping();
+        // }
+        // if(zoom == -3 && zOut) {
+        //     theorems.forEach(th => {
+        //         th.collapseToTitle();
+        //     });
+        //     definitions.forEach(def => {
+        //         def.collapseToTitle();
+        //     });
+        // }
 
     }
 
@@ -332,7 +332,11 @@
             def.refreshHeight();
         });
 
-        makeBlocksDraggable();
+        // makeBlocksDraggable();
+        panzoom(g.node, {
+            smoothScroll: false,
+            zoomDoubleClickSpeed: 1, 
+        });
 
         // save texts for collapse/expand during zooming
         theorems.forEach(th => {
@@ -343,10 +347,14 @@
         });
 
         Theorem.prototype.avoidOverlapping = avoidOverlapping;
+        Theorem.prototype.matrix = m;
 
         //initial collapse
         theorems.forEach(th => {
-            th.collapseToCore();
+            th.collapseToTitle();
+        });
+        definitions.forEach(def => {
+            def.collapseToTitle();
         });
 
         detectConnectedObjects();
