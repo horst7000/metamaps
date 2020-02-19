@@ -35,6 +35,7 @@ class Definition {
             this._g.removeClass("holdCore");
             this._holdCore = false;
         }
+        this.avoidOverlapping();
     }
 
     collapseToTitle() {
@@ -67,7 +68,7 @@ class Definition {
 
         // add click listener
         if(!editable) {
-            this._g.click((e) => this.click(e));
+            this._g.click(() => this.click());
         }
     }
 

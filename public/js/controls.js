@@ -12,6 +12,7 @@ function fetchPostTheorem() {
           type: 1,  // = blocktype.premise
           con: [],
       }],
+      tags:"",
       x:0,
       y:0
     })
@@ -41,6 +42,7 @@ function fetchPostDef() {
           type: 4,  // = blocktype.definition
           con: [],
       },
+      tags:"",
       x:0,
       y:0,
     })

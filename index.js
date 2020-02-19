@@ -337,7 +337,7 @@ app.route("/api/positions/update") // temporary
         dbTags.update({ $or: [{ x : null }, { y : null }] }, { $set: { x: 0, y: 0} }, {multi : true});  
         dbDefinitions.update({ $or: [{ x : null }, { y : null }] }, { $set: { x: 0, y: 0} }, {multi : true});  
         dbTheorems.update({ $or: [{ x : null }, { y : null }] }, { $set: { x: 0, y: 0} }, {multi : true});  
-        updatePositions(200);
+        updatePositions(500);
 
         res.json();
     });

@@ -23,7 +23,7 @@ block control
   br
   li
     if title      
-      input#titleInput(size='24' value=title placeholder="title")
+      input#titleInput(size='31' value=title placeholder="title")
       if theorem
         button(onclick='fetchPutTheorem()').btn.btn-secondary speichern
         button.btn.btn-danger loeschen
@@ -31,4 +31,4 @@ block control
         button(onclick='fetchPutDefinition()').btn.btn-secondary speichern
         button.btn.btn-danger loeschen
       br
-      input#tagInput(size='46' value=tags placeholder="tags")
+      input#tagInput(size='55' value=tags placeholder="tags")

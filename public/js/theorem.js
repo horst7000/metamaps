@@ -122,6 +122,7 @@ class Theorem {
                 this.expand();
             }
         }
+        this.avoidOverlapping();
     }
 
     collapseToTitle() {

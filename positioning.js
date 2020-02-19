@@ -44,7 +44,7 @@ function prepareForUpdate(defs, ths, tags) {
                 if(tagB != "" && tagA != tagB) {
                     let conTag = tags.filter(el => el.name == tagB)[0];
                     if(!conTag) return;
-                    if(tag.con.indexOf(conTag._id) != -1) return; // already connected
+                    // if(tag.con.indexOf(conTag._id) != -1) return; // already connected
                     tag.con.push(conTag._id);
                 }
             });
@@ -57,10 +57,10 @@ function prepareForUpdate(defs, ths, tags) {
         tag.con.forEach((tagId,j) => {
             let firstIndex = tag.con.indexOf(tagId);
             if(j == firstIndex) { // first appearance
-                tag.conCount[j] = 1;
+                tag.conCount.push(1);
                 con.push(tag.con[j]);
             } else {
-                tag.conCount[firstIndex]++;
+                tag.conCount[con.indexOf(tagId)]++;
                 tag.con[j] = "";
             }
         });
@@ -85,6 +85,7 @@ function calculatePositions(vertices,tags,repetitions=1, callback) {
         vertices.forEach(el => {
             let fx = Math.floor(el.forceX);
             let fy = Math.floor(el.forceY);
+            if(isNaN(fx) || isNaN(fy)) console.log(fx + " " + fy + " " + (el.name || el.title));
             el.x  +=fx;
             el.cx +=fx;
             el.y  +=fy;
@@ -102,6 +103,7 @@ function calcForces(vertices,tags) {
             let force = repulsiveForce(elA,elB);
 			elA.forceX += force.x;
             elA.forceY += force.y;
+            logForce(elA,elB,force.x,force.y,"repA");
             
         });
         force = gravity(elA,tags);
@@ -114,12 +116,20 @@ function calcForces(vertices,tags) {
             let force = attractiveForce(elA,elCon);
 			elA.forceX += force.x;
             elA.forceY += force.y;
-
+            logForce(elA,elCon,force.x,force.y,"attrA");
+                
             force = attractiveForce(elCon,elA);
-			elCon.forceX += force.x;
+            elCon.forceX += force.x;
             elCon.forceY += force.y;
+            logForce(elA,elCon,force.x,force.y,"attrCon");
         });
     });
+}
+
+function logForce(elA, elB, dfx, dfy, name) {
+    if(isNaN(elA.forceX) || isNaN(elA.forceY))
+        console.log(name+" "+ dfx + " " + dfy + " " + (elA.name || elA.title)
+                + " <> "+(elB.name || elB.title));
 }
 
 function effectiveDist(a,b) {
@@ -128,40 +138,46 @@ function effectiveDist(a,b) {
 
 function defaultDist(a,b) {
     // ~150 is max.distance from center to edge
-    let sizeA   = (a.usedByIds) ? 150+a.usedByIds.length*35 : 160;
-    let sizeB   = (b.usedByIds) ? 150+b.usedByIds.length*35 : 160;
+    let sizeA   = (a.usedByIds) ? 200*Math.sqrt(a.usedByIds.length) : 190;
+    let sizeB   = (b.usedByIds) ? 200*Math.sqrt(b.usedByIds.length) : 190;
     // let sizeA   = 150;
     // let sizeB   = 150;
     let bInA    = (a.usedByIds) ? a.con.indexOf(b._id) : -1;
-    let overlap = (bInA != -1) ? a.conCount[bInA]*150 : 0;
+    let overlap = (bInA != -1) ? Math.pow(a.conCount[bInA],1/4)*400 : 0;
     return sizeA + sizeB - overlap;
 }
 
 function normDist(a,b) {
-    let dist = Math.sqrt(Math.pow(a.x-b.x,2) + Math.pow(a.y-b.y,2));
-    return { dx : (b.x-a.x)/dist, dy : (b.y-a.y)/dist};
+    let dist = Math.sqrt(Math.pow(a.cx-b.cx,2) + Math.pow(a.y-b.y,2));
+    return { dx : (b.cx-a.cx)/dist, dy : (b.y-a.y)/dist};
 }
 
 const c0 = 500;
 function repulsiveForce(a,b) {  // repulsive force applying on a.   a' <-f-- a    b
-    let degA = (a.usedByIds) ? 2*a.usedByIds.length-a.con.length : a.con.length;
-    let degB = (b.usedByIds) ? 2*b.usedByIds.length-a.con.length : b.con.length; // TODO?: number of INcoming edges
+    // let degA = (a.usedByIds) ? a.usedByIds.length : a.con.length;
+    // let degB = (b.usedByIds) ? b.usedByIds.length : b.con.length; // TODO?: number of INcoming edges
+    let degA = a.con.length;
+    let degB = b.con.length; // TODO?: number of INcoming edges
     
     if(a._id == b._id)
     return {x:0, y:0};
     
     let d = effectiveDist(a,b);
-    if(d<=50) {
-        a.x += -25+Math.floor(Math.random()*50);
-        a.y += -25+Math.floor(Math.random()*50);
-        d = 50;
+    if(d<=5) {
+        dx    = -100+Math.floor(Math.random()*200)
+        a.x  += dx;
+        a.cx += dx;
+        a.y  += -100+Math.floor(Math.random()*200);
+        d = 5;
+        // console.log(`Body check ${(a.name||a.title)} <>  ${(b.name||b.title)} `);
     }
     let norm = normDist(a,b);
 
-    let x = c0*Math.sqrt((degA+1)*(degB+1))/Math.pow(d,0.95) * (-norm.dx);
+    let x = c0*Math.sqrt((degA+1)*(degB+1))/Math.pow(d,0.96) * (-norm.dx);
     let y = c0*Math.sqrt((degA+1)*(degB+1))/Math.pow(d,1.06) * (-norm.dy);
-    if(x > 1000)
-        console.log(`${c0}*${(degA+1)}*${(degB+1)}/${Math.pow(d,2)} * ${(a.x-b.x)} = ${x}`);
+    if(y > 1000 || isNaN(y))
+        console.log(`${c0}*${(degA+1)}*${(degB+1)}/${Math.pow(d,0.95)} * ${(-norm.dy)} = ${y} `+
+                    `  ${(a.name||a.title)} <>  ${(b.name||b.title)} `);
     return {
         x:x,
         y:y
@@ -170,7 +186,7 @@ function repulsiveForce(a,b) {  // repulsive force applying on a.   a' <-f-- a  
 
 // c1 = 8 * 1E-2;    1.3*1E-1
 function attractiveForce(a,b) { // attractive force applying on a.   a --f-> a' b
-    const c1 = 1.0*1E-1; // attractive
+    const c1 = 0.48*1E-1; // attractive
     let d    = effectiveDist(a,b);
     let norm = normDist(a,b);
 
@@ -185,22 +201,21 @@ function attractiveForce(a,b) { // attractive force applying on a.   a --f-> a' 
 
 // c2 = 4*1E-2;     1.7*1E-2
 function gravity(a,tags) {
-    const c2 = 1.6*1E-2;
+    const c2 = 9*1E-3;
     let c2_tag = 1;
     let degA = a.con.length;
-    let d = Math.sqrt(Math.pow(a.x,2) + Math.pow(a.y,2));
 
     if(tags == null) {   // a is a tag itself
-        tags = [{x:0, y:0}];
-        c2_tag = 1;
+        tags = [{cx:0, y:0}];
+        c2_tag = 0.1;
     }
 
     let x = 0;
     let y = 0;
     tags.forEach(tag => {
         if(!tag._id || tag.usedByIds.indexOf(a._id) != -1) { // tag without id is 0,0
-            x += c2_tag*c2*(degA+0.6) * (tag.x-a.x);
-            y += c2_tag*c2*(degA+0.6) * (tag.y-a.y);
+            x += c2_tag*c2*(degA+0.3) * (tag.cx-a.cx);
+            y += c2_tag*c2*(degA+0.3) * (tag.y-a.y);
         }
     });
 

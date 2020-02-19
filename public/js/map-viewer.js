@@ -29,6 +29,8 @@
     };
 
     document.getElementById("pos").addEventListener("click",loadPosFromAPI);
+    document.getElementById("upd").addEventListener("click",() => fetch('/api/positions/update/'));
+    document.getElementById("res").addEventListener("click",() => fetch('/api/positions/reset/'));
 
     function loadPosFromAPI() {
         let pr = new Promise( resolve => {
@@ -71,12 +73,15 @@
         if(!elements)
             elements = definitions.concat(theorems); // definitions + theorems  
 
-        elements.forEach(el => {
-            definitions.forEach(def => {
-                pushAway(el,def);
-            });
-            theorems.forEach(th => {
-                pushAway(el,th);
+        elements.forEach(elA => {
+            let elaX = elA.x;
+            let elaY = elA.y;
+            let w = elA.width;
+            let h = elA.height;
+
+            elements.forEach(elB => {
+                if(Math.abs(elaX-elB.x) > w || Math.abs(elaY-elB.y) > h) return;
+                pushAway(elA,elB);
             });
         });
         drawConnections();
@@ -85,8 +90,8 @@
     function pushAway(a,b) {
         if(a._id == b._id)
             return;
-        
-        const yFactor = 0.2;
+
+        const yFactor = 0.6;
         
         // push a and b away dependend on whos on top / more right
         if(a.x < b.x && a.y < b.y) { // a to the top left of b
@@ -121,6 +126,7 @@
     }
 
     function colorizeBlocksByTag() {
+        tags.sort((a,b) => b.usedByIds.length - a.usedByIds.length);
         tags.forEach(tag => {
             let color = tag.color;
             tag.usedByIds.forEach(id => {
@@ -252,7 +258,7 @@
         }, 10);
     }
 
-    // zoom
+    /*// zoom 
     document.addEventListener("wheel", (e) => {
         if(!isZooming) {
             isZooming = true;
@@ -265,6 +271,7 @@
             toggle = !toggle;
         }
     });
+    // */
     
     
     function handleZoom(e) {
@@ -322,7 +329,8 @@
         drawTags(jsontags);
         drawBlocks(jsontheorems, jsondefs);
         colorizeBlocksByTag();
-        await MathJax.typesetPromise();
+        
+        renderMathInElement(document.body);
 
         // refresh blocks height after MathJax typeset
         theorems.forEach(th => {
@@ -347,7 +355,7 @@
         });
 
         Theorem.prototype.avoidOverlapping = avoidOverlapping;
-        Theorem.prototype.matrix = m;
+        Definition.prototype.avoidOverlapping = avoidOverlapping;
 
         //initial collapse
         theorems.forEach(th => {

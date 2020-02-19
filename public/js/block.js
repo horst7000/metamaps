@@ -153,7 +153,8 @@ class Block {
             this._height = this.drawDefElements(group, editable);
 
         // draw text
-        this._txt = this.createForeignText(this._text, editable);
+        let cleantext = (!editable) ? this.textWithoutBrInMath() : this._text;
+        this._txt = this.createForeignText(cleantext, editable);
         this._height    += parseInt(this._txt.getAttribute("height"))+45;
         group.node.appendChild(this._txt);  // foreignObject
         
@@ -197,6 +198,12 @@ class Block {
 
     resetText() {
         this._text = this._text0;
+    }
+
+    textWithoutBrInMath() {
+        //find <br> inside Math mode
+        // const regex = /(\\\((?:(?!\\\)).)*?)<br>|(\\\[(?:(?!\\\]).)*?)<br>|(\\begin(?:(?!\\end).)*?)<br>/gs;
+        return this._text.replace(/<br>/g, "\n");
     }
 
     setForeignXY(el,x,y) {
@@ -397,7 +404,7 @@ class Block {
         this._text  = this._text.replace(regex, subst);
 
         if(this._type == blocktype.definition) {
-            let alts = this._altText.split(";");
+            let alts = this._altText.split(/;/);
             alts = alts.filter(alt => alt);
             return {
                 x : this._x,

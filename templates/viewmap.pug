@@ -2,8 +2,13 @@ extends layout
 
 block includeScripts
   link(rel='stylesheet' href='../style.css')
+  script(src='https://polyfill.io/v3/polyfill.min.js?features=es6,es7,es2017,es2018&flags=gated')
   script(type='text/javascript' src= '../js/snap.svg.js')
   script(type='text/javascript' src= '/panzoom/panzoom.min.js')
+  link(rel='stylesheet' href='https://cdn.jsdelivr.net/npm/katex@0.11.1/dist/katex.min.css' integrity='sha384-zB1R0rpPzHqg7Kpt0Aljp8JPLqbXI3bhnPWROx27a9N0Ll6ZP/+DiW/UqRcLbRjq' crossorigin='anonymous')
+  script(defer='' src='https://cdn.jsdelivr.net/npm/katex@0.11.1/dist/katex.min.js' integrity='sha384-y23I5Q6l+B6vatafAwxRu/0oK/79VlbSz7Q9aiSZUvyWYIYsd+qj+o24G5ZU2zJz' crossorigin='anonymous')
+  script(defer='' src='https://cdn.jsdelivr.net/npm/katex@0.11.1/dist/contrib/auto-render.min.js' integrity='sha384-kWPLUVMOks5AQFrykwIup5lo0m3iMkkHrD0uJ4H5cjeGihAutqP0yW0J6dpFiVkI' crossorigin='anonymous' onload='renderMathInElement(document.body);')
+  
 
 block map
   br
@@ -12,12 +17,8 @@ block map
   svg#drawsvg(height="90%")
   p#time(style={position:"absolute", top:"400px", right:"200px"}) bla
   button#pos(style={position:"absolute", top:"450px", right:"200px"}) newPos
-  script(src='https://polyfill.io/v3/polyfill.min.js?features=es6')
-  script.
-    MathJax = {
-      svg: {fontCache: 'global'}
-    };
-  script#MathJax-script(async='' src='https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js')
+  button#upd(style={position:"absolute", top:"500px", right:"200px"}) update
+  button#res(style={position:"absolute", top:"550px", right:"200px"}) reset
   script(src="../js/tag.js")
   script(src="../js/block.js")
   script(src="../js/theorem.js")
