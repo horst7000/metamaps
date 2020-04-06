@@ -11,8 +11,8 @@
   "dependencies": {
     "express": "^4.17.1",
     "nedb": "^1.8.0",
-    "panzoom": "^9.1.0",
-    "paper": "^0.12.3",
+    "panzoom": "^9.2.1",
+    "paper": "^0.12.4",
     "pug": "^2.0.4"
   }
 }
