@@ -9,7 +9,7 @@
   "author": "Martin Gaebele",
   "license": "ISC",
   "dependencies": {
-    "express": "^4.17.1",
+    "express": "^4.18.2",
     "nedb": "^1.8.0",
     "panzoom": "^9.2.1",
     "paper": "^0.12.4",
